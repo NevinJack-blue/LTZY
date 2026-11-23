@@ -56,8 +56,11 @@ html[data-theme='dark'] .ltzy-build {
 .ltzy-box {
   position: absolute; box-sizing: border-box; border: 1px solid var(--asm-line);
   border-radius: 6px; background: #ffffff08;
-  transform-origin: left center; will-change: transform, opacity;
+  transform-origin: left top; will-change: transform, opacity;
 }
+/* Crosshair cursor that drags a frame out from its top-left corner. */
+.ltzy-draw { will-change: transform, opacity; }
+.ltzy-draw svg { display: block; }
 .ltzy-box > span {
   position: absolute; left: 0; top: -18px; font-size: 10px;
   letter-spacing: .12em; color: var(--asm-dim); white-space: nowrap;

@@ -147,9 +147,26 @@ export function mountMotion(root, { replay = false } = {}) {
     box.innerHTML = '<span>0' + (i + 1) + ' / ' + TEAMS[0].name + '</span>';
     overlay.append(box);
     boxes.push({ el: box, r });
+    // A crosshair cursor drags the frame out from the top-left corner to the
+    // bottom-right; the box grows with the exact same timing, Figma-style.
+    const draw = document.createElement('div');
+    draw.className = 'ltzy-cursor ltzy-draw';
+    draw.style.setProperty('--c', TEAMS[i % TEAMS.length].color);
+    draw.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18">' +
+      '<path d="M9 1v16M1 9h16" stroke="var(--c)" stroke-width="1.4" fill="none"/>' +
+      '<circle cx="9" cy="9" r="3.4" fill="none" stroke="var(--c)" stroke-width="1.4"/></svg>';
+    overlay.append(draw);
+    const dFromX = r.left - 22, dFromY = r.top - 18;
+    const dToX = r.left + r.width + 10, dToY = r.top + r.height + 10;
+    play(draw, [
+      { transform: 'translate3d(' + Math.round(dFromX) + 'px,' + Math.round(dFromY) + 'px,0)', opacity: 0 },
+      { transform: 'translate3d(' + Math.round(dFromX) + 'px,' + Math.round(dFromY) + 'px,0)', opacity: 1, offset: .1 },
+      { transform: 'translate3d(' + Math.round(dToX) + 'px,' + Math.round(dToY) + 'px,0)', opacity: 1, offset: .88 },
+      { transform: 'translate3d(' + Math.round(dToX) + 'px,' + Math.round(dToY) + 'px,0)', opacity: 0 },
+    ], { duration: T.boxDur, delay: T.box + i * T.boxGap, easing: line });
     play(box, [
-      { transform: 'scaleX(0)' },
-      { transform: 'scaleX(1)' },
+      { transform: 'scale(0)' },
+      { transform: 'scale(1)' },
     ], { duration: T.boxDur, delay: T.box + i * T.boxGap, easing: line });
     play(box.querySelector('span'), [{ opacity: 0 }, { opacity: 1 }],
       { duration: 180, delay: T.box + i * T.boxGap + T.boxDur * .8, easing: line });
