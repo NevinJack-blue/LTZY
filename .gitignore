@@ -23,6 +23,7 @@ settings.local.*
 
 # 本地账本与凭据
 .ltzy/
+/favicon.ico
 *.sqlite*
 *.db
 *.db-*
