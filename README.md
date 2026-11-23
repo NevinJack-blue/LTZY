@@ -55,9 +55,9 @@ start-ltzy.cmd       Windows 双击启动入口
 
 ## 协作流程（必读）
 
-`main` 分支已开启保护：**禁止直接 push，所有改动必须走 Pull Request + 审核合并**。
+仓库维护者（持有者）可直接推送到 `main`；贡献者请走 Pull Request：
 
-1. 从最新 `main` 拉出功能分支：
+1. Fork 或从最新 `main` 拉出功能分支：
    ```bash
    git checkout main
    git pull origin main
@@ -72,7 +72,7 @@ start-ltzy.cmd       Windows 双击启动入口
    ```bash
    git push -u origin feat/你的功能名
    ```
-   然后到 GitHub 页面创建 Pull Request → 等待维护者审核 → 审核通过后由维护者合并进 `main`。
+   然后到 GitHub 页面创建 Pull Request → 由维护者审核合并进 `main`。
 
 ## 隐私红线
 
