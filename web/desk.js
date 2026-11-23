@@ -346,7 +346,7 @@ charge(r)+
  if(c)c.onclick=()=>copy(r.id);}
  async function copy(text){try{await navigator.clipboard.writeText(text);notify('已复制')}catch{notify('无法访问剪贴板，请手动选择文本复制。')}}
  const view={console:overview,keys:keyPage,logs,usage:billing,ops};
- root.innerHTML='<div class="dk"><aside class="dk-side" data-build><a class="dk-project" href="#console"><span class="dk-marker">L</span><div><b>默认项目</b><small>LTZY / WORKSPACE</small></div></a><span class="dk-nav-label">工作空间</span><nav aria-label="控制台导航">'+
+ root.innerHTML='<div class="dk"><aside class="dk-side" data-build><a class="dk-project" href="#console"><img class="dk-marker" src="/logo-256.png" width="39" height="39" alt=""><div><b>默认项目</b><small>LTZY / WORKSPACE</small></div></a><span class="dk-nav-label">工作空间</span><nav aria-label="控制台导航">'+
 Object.entries(sections).map(([k,[name]])=>'<a href="#'+
 k+
 '" aria-label="'+e(name)+'" '+

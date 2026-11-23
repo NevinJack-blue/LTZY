@@ -20,10 +20,8 @@
 .dk-project{display:flex;align-items:center;gap:11px;padding:0 9px 32px}
 .dk-project b{font-size:15px;color:#1c3557;font-weight:700}
 .dk-project small{display:block;color:#637999;font-size:11px;letter-spacing:.12em;margin-top:3px}
-.dk-marker{display:grid;place-items:center;width:39px;height:43px;flex:none;color:white;
- background:linear-gradient(145deg,#92c4ff,#397af0 37%,#194da6 80%,#a8c1e4);
- border-radius:12px;box-shadow:inset 0 1px 2px white,0 5px 12px #2758a333;
- font-size:24px;font-weight:700;transform:rotate(-5deg)}
+.dk-marker{width:39px;height:39px;flex:none;object-fit:contain;
+ filter:drop-shadow(0 5px 12px #2758a333);transform:rotate(-5deg)}
 .dk-nav-label{font-size:11px;letter-spacing:.12em;margin:0 14px 13px;color:#657a96}
 .dk-side nav{display:grid;gap:8px}
 .dk-side nav a{display:flex;align-items:center;gap:12px;padding:13px 14px;
