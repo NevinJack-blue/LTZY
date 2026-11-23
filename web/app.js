@@ -39,7 +39,7 @@ async function render(){
  catch(err){if(gen!==generation)return;
  if(privatePages.has(page)&&err.status===401){signed=false;showLogin(root)}
  else{root.innerHTML='<section class="shell-error"><h1>页面未能载入</h1><p>'+escape(err.message)+'</p><button class="button" type="button">重新加载</button></section>';root.querySelector('button').onclick=render}}
- finally{if(gen===generation){signout.hidden=!signed;animate(root)}}
+ finally{if(gen===generation){signout.hidden=!signed;requestAnimationFrame(()=>animate(root))}}
 }
 signout.onclick=async()=>{signout.disabled=true;try{await api('/api/logout',{method:'POST',body:{}});signed=false;signout.hidden=true;go('home')}catch(e){notify(e.message)}finally{signout.disabled=false}};
 $('.skip').onclick=e=>{e.preventDefault();main.focus()};

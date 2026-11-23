@@ -37,7 +37,7 @@ function targets(root) {
     .filter(x => x.r.width > 60 && x.r.height > 26 && x.r.top < innerHeight - 24 && x.r.bottom > 60);
   const top = [];
   for (const row of rows) {
-    if (top.length >= 6) break;
+    if (top.length >= 4) break;
     if (top.some(x => x.el.contains(row.el))) continue;
     top.push(row);
   }
@@ -58,12 +58,13 @@ export function mountMotion(root, { replay = false } = {}) {
   let previous = 0, frames = 0, frameTotal = 0, worst = 0, samples = 0;
   const animations = [], typers = [], listeners = [];
   const T = replay
-    ? { box: 480, boxGap: 430, boxDur: 900, type: 2900, typeGap: 820, typeDur: 1150,
-        route: 5300, routeDur: 760, build: 6250, buildGap: 170, end: 7500 }
-    : { box: 360, boxGap: 300, boxDur: 760, type: 1900, typeGap: 620, typeDur: 900,
-        route: 3480, routeDur: 560, build: 4180, buildGap: 140, end: 5400 };
+    ? { box: 300, boxGap: 210, boxDur: 620, type: 1250, typeGap: 430, typeDur: 800,
+        route: 2450, routeDur: 520, build: 2950, buildGap: 120, end: 4000 }
+    : { box: 200, boxGap: 150, boxDur: 520, type: 850, typeGap: 330, typeDur: 620,
+        route: 1450, routeDur: 400, build: 1650, buildGap: 90, end: 2450 };
   const phaseAt = { LAYOUT: T.box - 120, TYPE: T.type - 120, ROUTE: T.route - 120, BUILD: T.build - 90 };
-  const total = first ? T.end : 620;
+  const ROUTE_TOTAL = 900;
+  const total = first ? T.end : ROUTE_TOTAL;
   const stats = {
     version: 4, mode: quiet() || reduce.matches ? 'quiet' : lite ? 'lite' : 'normal',
     kind: replay ? 'replay' : first ? 'intro' : 'route',
@@ -109,12 +110,9 @@ export function mountMotion(root, { replay = false } = {}) {
   }
   stats.active = true;
   overlay = document.createElement('div');
-  overlay.className = 'ltzy-build' + (lite ? ' ltzy-build-lite' : '');
+  overlay.className = 'ltzy-build' + (lite ? ' ltzy-build-lite' : '') +
+    (first ? '' : ' ltzy-build-clear');
   overlay.setAttribute('aria-hidden', 'true');
-  const style = getComputedStyle(document.documentElement);
-  const surface = style.getPropertyValue('--assembly-surface').trim() ||
-    (document.documentElement.dataset.theme === 'dark' ? '#0e1a2e' : '#f7faff');
-  overlay.style.setProperty('--asm-surface', surface);
   overlay.innerHTML =
     '<div class="ltzy-build-head"><b>LTZY / BUILD TRACE</b>' +
     '<span>界面构建演示 · 非网络进度</span></div>' +
@@ -135,8 +133,12 @@ export function mountMotion(root, { replay = false } = {}) {
   listen(root, 'pointerdown', () => finish('interaction'), { passive: true });
   listen(window, 'wheel', () => finish('scroll'), { passive: true, once: true });
 
+  // Route transitions keep the overlay transparent and skip heavy decoration;
+  // only the team log lights up briefly over the already-rendered page.
   const boxes = [];
   const texts = [];
+  const cursors = [];
+  if (first) {
   found.forEach((item, i) => {
     const r = item.r;
     const box = document.createElement('div');
@@ -146,9 +148,8 @@ export function mountMotion(root, { replay = false } = {}) {
     overlay.append(box);
     boxes.push({ el: box, r });
     play(box, [
-      { clipPath: 'inset(0 100% 0 0)' },
-      { clipPath: 'inset(0 0 100% 0)', offset: .58 },
-      { clipPath: 'inset(0 0 0 0)' },
+      { transform: 'scaleX(0)' },
+      { transform: 'scaleX(1)' },
     ], { duration: T.boxDur, delay: T.box + i * T.boxGap, easing: line });
     play(box.querySelector('span'), [{ opacity: 0 }, { opacity: 1 }],
       { duration: 180, delay: T.box + i * T.boxGap + T.boxDur * .8, easing: line });
@@ -196,9 +197,8 @@ export function mountMotion(root, { replay = false } = {}) {
     play(path, [{ opacity: 0 }, { opacity: 1 }], { duration: 140, delay: T.route, easing: line });
   }
 
-  const cursors = [];
   const teamTargets = TEAMS.map((t, i) => boxes[i % boxes.length] || boxes[0]);
-  const count = lite ? 14 : 20;
+  const count = lite ? 12 : 16;
   for (let i = 0; i < count; i++) {
     const team = i % 4, worker = Math.floor(i / 4);
     const box = teamTargets[team];
@@ -210,8 +210,9 @@ export function mountMotion(root, { replay = false } = {}) {
       (i < 4 ? '<span>' + TEAMS[team].name + '</span>' : '');
     overlay.append(c);
     cursors.push(c);
-    const toX = box.r.left + 14 + worker * 22;
-    const toY = box.r.top + 16 + (worker % 2) * 18;
+    const toX = box.r.left + 12 + (worker / Math.max(1, Math.ceil(count / 4) - 1)) *
+      Math.max(60, box.r.width - 44);
+    const toY = box.r.top + (worker % 2 === 0 ? 8 : Math.max(8, box.r.height - 30));
     const orbitAngle = (team / 4) * Math.PI * 2 + worker * .4;
     const fromX = toX + Math.cos(orbitAngle) * 130;
     const fromY = toY + Math.sin(orbitAngle) * 90;
@@ -225,9 +226,10 @@ export function mountMotion(root, { replay = false } = {}) {
     ], { duration: Math.max(420, phaseAt.BUILD + 900 - start), delay: start, easing: ease });
   }
   stats.cursorCount = count;
+  } // end first-only build (boxes, typers, connector, cursors)
   play(overlay.querySelector('.ltzy-build-head'), [{ opacity: 0 }, { opacity: 1 }],
     { duration: 320, delay: 120, easing: line });
-  finishAfter(T.end - 560);
+  finishAfter(first ? T.end - 560 : ROUTE_TOTAL - 400);
   function finishAfter(ms) {
     const wait = Math.max(0, ms - (performance.now() - started));
     deadline = setTimeout(() => {
@@ -249,14 +251,18 @@ export function mountMotion(root, { replay = false } = {}) {
       stats.sampleCount = samples;
       stats.avgFrameMs = Math.round(frameTotal / samples * 100) / 100;
       stats.maxFrameMs = Math.round(worst * 100) / 100;
-      if (!lite && samples >= 10 && stats.avgFrameMs > 26) downgrade();
+      if (!lite && samples >= 24 && stats.avgFrameMs > 26) downgrade();
     }
     previous = now;
     const at = now - started;
     if (!first) {
-      const phase = Math.floor(at / 150);
-      if (phase !== startedPhases.route) {
-        startedPhases.route = phase;
+      // Route mode: light the team log rows one by one over the live page.
+      const idx = Math.floor(at / 150);
+      if (idx !== startedPhases.route && idx >= 0 && idx < TEAMS.length) {
+        startedPhases.route = idx;
+        const row = overlay.querySelectorAll('.ltzy-build-log > div')[idx];
+        if (row) play(row, [{ opacity: 0, transform: 'translate3d(-8px,0,0)' },
+          { opacity: 1, transform: 'translate3d(0,0,0)' }], { duration: 220, easing: line });
       }
     } else {
       if (at >= phaseAt.TYPE) mark('TYPE');
@@ -281,8 +287,8 @@ export function mountMotion(root, { replay = false } = {}) {
     stats.liteReason = 'sampled-frame-time';
     stats.downgraded = true;
     overlay.classList.add('ltzy-build-lite');
-    cursors.slice(14).forEach(c => { c.getAnimations().forEach(a => a.cancel()); c.remove(); });
-    stats.cursorCount = 14;
+    cursors.slice(12).forEach(c => { c.getAnimations().forEach(a => a.cancel()); c.remove(); });
+    stats.cursorCount = 12;
   }
   raf = requestAnimationFrame(tick);
   return cleanup;

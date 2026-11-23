@@ -1,6 +1,6 @@
-/* Sequential build overlay: solid scrim, hand-drawn boxes, typed headings. */
+/* Sequential build overlay: translucent scrim over the live page, hand-drawn boxes, typed headings. */
 .ltzy-build {
-  --asm-surface: #f7faff;
+  --asm-surface: rgba(247, 250, 255, .55);
   --asm-line: #9db4d6;
   --asm-ink: #1b2e4b;
   --asm-dim: #4d6285;
@@ -25,11 +25,14 @@
 }
 .ltzy-build-lite::before { display: none; }
 html[data-theme='dark'] .ltzy-build {
-  --asm-surface: #0d1727;
+  --asm-surface: rgba(13, 23, 39, .62);
   --asm-line: #3f6ba8;
   --asm-ink: #e6f0ff;
   --asm-dim: #9db4d6;
 }
+/* Route transitions keep the page fully visible; only the log floats above. */
+.ltzy-build-clear { background: transparent; }
+.ltzy-build-clear::before { opacity: .35; }
 .ltzy-build-head { position: absolute; left: 26px; top: 92px; display: grid; gap: 5px; }
 .ltzy-build-head b { font-size: 12px; letter-spacing: .12em; color: var(--asm-ink); }
 .ltzy-build-head span { color: var(--asm-dim); }
@@ -53,6 +56,7 @@ html[data-theme='dark'] .ltzy-build {
 .ltzy-box {
   position: absolute; box-sizing: border-box; border: 1px solid var(--asm-line);
   border-radius: 6px; background: #ffffff08;
+  transform-origin: left center; will-change: transform, opacity;
 }
 .ltzy-box > span {
   position: absolute; left: 0; top: -18px; font-size: 10px;
@@ -73,7 +77,8 @@ html[data-theme='dark'] .ltzy-build {
   position: absolute; top: 0; left: 0; display: flex; align-items: flex-start;
   gap: 4px; opacity: 0; will-change: transform, opacity;
 }
-.ltzy-cursor path { fill: var(--c); stroke: var(--asm-surface); stroke-width: 1.4; }
+.ltzy-cursor path { fill: var(--c); stroke: #f7faff; stroke-width: 1.4; }
+html[data-theme='dark'] .ltzy-cursor path { stroke: #0d1727; }
 .ltzy-cursor > span {
   margin-top: 16px; padding: 4px 6px; border-radius: 3px; background: var(--c);
   color: #fff; font-size: 10px; letter-spacing: .06em;
