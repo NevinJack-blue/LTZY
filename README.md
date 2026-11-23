@@ -1,6 +1,57 @@
 # LTZY
 
-开源协作仓库。
+LTZY 是一个在本机运行的模型路由与用量账本。官网和工作台由同一个 Python 服务提供；默认仅绑定回环地址，使用 SQLite 持久化。运行时只需要 Python 3.11+，不需要 npm、第三方 Python 包或云服务账户。
+
+## 启动与首次使用
+
+在 Windows 双击 [启动 LTZY](start-ltzy.cmd)，或在仓库目录执行：
+
+```shell
+python server.py --port 8765
+```
+
+打开 <http://127.0.0.1:8765/>，点击「工作台」。首次启动会生成随机管理员密码，保存在本机的 `.ltzy/admin-password.txt`。不要将密码、数据库或运行目录分享给他人。Ctrl+C 停止；重新执行相同命令会使用原数据。其他端口和数据目录通过 `--port`、`--data-dir` 指定。
+
+1. 在「API 密钥」签发可调用的项目 Key，立即保存明文；只读 Key 只能列模型。
+2. 打开「接入文档」，将项目 Key 放入示例指定的环境变量，再运行当前模型对应的示例。管理员密码不能作为模型 API Key。
+3. 在「请求日志」打开小票，核对路由、用量和价格快照。在「用量与预算」调整预算、导出 CSV。出现未确认用量时，在「路由与对账」按上游凭证核对，不把未知成本记为零。
+
+默认只有 `local/echo`，一条不联网、不调用大模型的确定性测试线路。它走实际鉴权和记账流程，并使用**测试费率**；账本金额不是实际扣款。官网首页的可播放路线始终是教学示例，不向工作台写入虚构的请求。
+
+## 配置自有上游
+
+配置说明、计费边界和数据恢复见[运行手册](docs/gateway-operations.md)。本版本面向**单机、单项目、单管理员**；没有用户注册、在线收款、跨租户隔离或公网部署能力。不要将本地管理端口代理到公共网络。
+
+## 验证
+
+```shell
+python -m unittest discover -s tests -v
+```
+
+管理和推理回归使用临时数据库。网关测试包含本机 HTTPS 上游夹具，不调用付费模型；[运行手册](docs/gateway-operations.md)记录了外部配置后的首调核验方法。
+
+浏览器断言自起隔离实例与数据目录，不依赖正在运行的服务，也不会写入本机账本：
+
+```shell
+python scripts/checks/public_checks.py   # 官网 29 项断言
+python scripts/checks/desk_checks.py    # 工作台 42 项断言
+```
+
+报告与截图写入 `.ltzy/checks/`（已被忽略，不入库）。设计规范与动效实测口径见 [docs/design-v4.md](docs/design-v4.md)。
+
+## 目录结构
+
+```
+server.py            HTTP 服务与 /api/* 管理面
+gateway.py           /v1/* 模型网关、路由、计量与账务
+web/                 官网与工作台前端（原生 JS/CSS，无构建步骤）
+tests/               后端单元与集成测试（20 项）
+scripts/checks/      浏览器验收脚本（Playwright + Edge）
+docs/                产品设计、技术选型、视觉规范、运行手册
+legacy/              v0 时期的历史原型，仅供参考
+start-ltzy.cmd       Windows 双击启动入口
+```
+
 
 ## 协作流程（必读）
 

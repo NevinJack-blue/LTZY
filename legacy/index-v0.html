@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>鹈鹕骑行记 · 海边明信片</title>
+<style>
+:root{color-scheme:light;--paper:#f5edd9;--ink:#193b39;--muted:#435955;--red:#b94432}
+*{box-sizing:border-box}body{margin:0;background:#e6ddc6;color:var(--ink);font:16px/1.5 system-ui,"Microsoft YaHei",sans-serif;padding:clamp(12px,3vw,42px) 12px}
+main{margin:auto;max-width:1020px;background:var(--paper);padding:clamp(14px,3vw,38px);box-shadow:0 12px 36px #34291324}
+header,footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}header{align-items:end;margin-bottom:18px}
+.kicker{font:700 13px/1.5 system-ui;letter-spacing:.2em;color:var(--red);margin:0 0 6px}h1{font-family:"Songti SC",SimSun,serif;font-size:clamp(36px,6vw,74px);line-height:1.12;margin:0;letter-spacing:.02em}header span{font-family:Georgia,serif;font-style:italic;color:var(--muted)}
+.scene{display:block;width:100%;height:auto;background:#f0cf92;overflow:hidden}footer{margin-top:16px}footer p{margin:0;color:var(--muted)}
+button{color:var(--ink);background:transparent;border:1px solid currentColor;border-radius:999px;padding:8px 15px;min-height:44px;display:inline-flex;align-items:center;gap:8px;font:600 15px/1.45 system-ui,"Microsoft YaHei",sans-serif;cursor:pointer}button[hidden]{display:none}button:hover{background:#e5dcc4}button:focus-visible{outline:3px solid var(--red);outline-offset:3px}button svg{width:16px;height:16px;fill:currentColor}.play{display:none}[data-paused] .pause{display:none}[data-paused] .play{display:block}
+.wheel,.crank{transform-box:view-box;animation:turn 1.25s linear infinite}.rear{transform-origin:319px 361px}.front{transform-origin:598px 361px}.crank{transform-origin:439px 365px;animation-duration:1.7s}
+.bird{animation:bob .85s ease-in-out infinite alternate}.wind{animation:gust 2.5s ease-in-out infinite}.road{animation:roll 1.25s linear infinite}.scarf{transform-box:view-box;transform-origin:475px 226px;animation:flutter .6s ease-in-out infinite alternate}
+[data-paused] *{animation-play-state:paused!important}
+@keyframes turn{to{transform:rotate(360deg)}}@keyframes bob{to{transform:translateY(-3px)}}@keyframes gust{0%,100%{opacity:.24;transform:translateX(11px)}50%{opacity:.75;transform:translateX(-12px)}}@keyframes roll{to{stroke-dashoffset:132}}@keyframes flutter{to{transform:rotate(-5deg)}}
+@media(prefers-reduced-motion:reduce){html:not([data-motion]) *{animation-play-state:paused!important}}
+@media(max-width:540px){.scene{width:100%;aspect-ratio:1.16;object-fit:cover}header{display:block}header span{display:block;margin-top:8px}footer{align-items:start}}
+</style>
+</head>
+<body>
+<main>
+<header><div><p class="kicker">滨海明信片</p><h1>鹈鹕骑行记</h1></div><span lang="en">A Pelican on Wheels</span></header>
+<svg class="scene" viewBox="0 0 900 482" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="art-title art-desc" xmlns="http://www.w3.org/2000/svg">
+<title id="art-title">戴绿围巾的白鹈鹕骑着橘红自行车</title><desc id="art-desc">夕阳下，白鹈鹕伸出翅尖扶住车把，沿海边的堤道骑行。</desc>
+<defs>
+ <pattern id="dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".65" fill="#512e1a" opacity=".24"/></pattern>
+ <g id="spokes" fill="none" stroke="#46635b" stroke-width="1.5"><circle r="58"/><path d="M-58 0H58M0-58V58M-41-41 41 41M41-41-41 41M-53-23 53 23M53-23-53 23M-23-53 23 53M23-53-23 53"/><circle r="7" fill="#f6e9ce" stroke="#193b39" stroke-width="3"/></g>
+ <g id="grass" fill="none" stroke="#193b39" stroke-width="2.4" stroke-linecap="round"><path d="M2 2q-7-16-21-22M5 2q1-24-9-38M8 2q13-13 24-16M7 1q5-26 17-33"/></g>
+</defs>
+<path fill="#f3d7a0" d="M0 0h900v482H0z"/>
+<circle cx="615" cy="161" r="113" fill="#e79856"/>
+<circle cx="615" cy="161" r="113" fill="url(#dots)" opacity=".6"/>
+<path fill="#93aaa0" d="M0 253q71-50 175-38t186 39q86 26 170-6L600 300H0Z"/>
+<path fill="#608c85" d="M0 271q124-22 241 2t239-5q121-32 208-14t212-30v146H0Z"/>
+<g fill="none" stroke="#f4dec0" stroke-width="2" stroke-linecap="round" opacity=".76"><path d="M49 281h103m13 0h23m-78 18h111m-206 15h123m68 3h36m388-31h101m22-11h89m-164 41h189m-191 26h70m-734-11h88m756-31h30"/></g>
+<path fill="#e9ba7e" d="M0 369q102 3 245 16 327 30 655-44v141H0Z"/>
+<path fill="url(#dots)" opacity=".75" d="M0 369q102 3 245 16 327 30 655-44v141H0Z"/>
+<path fill="#d99665" d="M0 448q391 26 900-56v90H0Z"/>
+<path class="road" d="M-135 456Q353 481 1035 402" fill="none" stroke="#fff0c9" stroke-width="3" stroke-dasharray="41 91" opacity=".8"/>
+<g opacity=".7"><use href="#grass" x="142" y="425"/><use href="#grass" transform="translate(766 398) scale(.8)"/><use href="#grass" transform="translate(724 421) scale(.5)"/></g>
+<g fill="none" stroke="#375e57" stroke-width="2.6" stroke-linecap="round"><path d="M705 120q11-7 20 3 8-11 20-7m-5 15q8-4 15 2 7-8 15-5M193 149q9-6 16 2 8-7 17-4"/></g>
+<g class="wind" fill="none" stroke="#ffecd0" stroke-width="3" stroke-linecap="round"><path d="M233 207h68m-49 16h36m-65 27h82m349-56h37"/></g>
+<ellipse cx="457" cy="428" rx="222" ry="12" fill="#644836" opacity=".22"/>
+<g fill="none" stroke="#193b39" stroke-width="8"><circle cx="319" cy="361" r="63"/><circle cx="598" cy="361" r="63"/></g>
+<g class="wheel rear"><use href="#spokes" x="319" y="361"/></g><g class="wheel front"><use href="#spokes" x="598" y="361"/></g>
+<g stroke-linejoin="round" stroke-linecap="round" fill="none">
+ <path d="M319 354l121-3m-121 19 119 9" stroke="#193b39" stroke-width="3"/>
+ <path d="M319 361l74-86 46 90-120-4m74-86 153 1-107 89m104-100 55 96" stroke="#193b39" stroke-width="12"/>
+ <path d="M319 361l74-86 46 90-120-4m74-86 153 1-107 89m104-100 55 96" stroke="#d94e38" stroke-width="7"/>
+ <path d="m393 276-10-24m160 13-13-29 38-7q12-3 16 10" stroke="#193b39" stroke-width="7"/>
+ <path d="M362 251q21 5 43 1" stroke="#193b39" stroke-width="11"/>
+ <circle cx="439" cy="365" r="15" fill="#ebc885" stroke="#193b39" stroke-width="4"/>
+ <g class="crank" stroke="#193b39" stroke-width="5"><path d="m421 378 36-26m-44 26h16m21-26h15"/></g>
+</g>
+<g class="bird" stroke="#193b39" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+ <path class="scarf" d="M478 219q-37-13-65 1-18 9-44-1l11 18-14 8q30 12 62-4 21-10 51-3z" fill="#40857b"/>
+ <path d="M399 260q24 22 63 13l-19 51 16 21-13 7-22-24 7-42" fill="#d58b46"/>
+ <path d="M433 262q30 16 47 3l-10 49-27 65-16 1 24-67 2-36" fill="#e8a054"/>
+ <path d="m433 373-16 5 3 7 32-2 3-8z" fill="#efad62"/>
+ <path d="M382 245q-32 4-60-23 25 5 49-5-16-9-26-22 29 13 73 3 39-8 56-40 15-29 15-57 3-38 35-44 29-6 48 15l12 23q-18 25-42 21-8 55-20 90-21 58-92 62-34 2-48-23z" fill="#fff2d5"/>
+ <path d="M357 198q28 10 58 1 29-9 47-25-18 57-72 67-19-8-32-21l20-3z" fill="#e8d2ad" stroke="none"/>
+ <path d="M552 87q37 9 106 10 21 0 29 10-32 11-63 31-39 20-69-4-13-10-17-28z" fill="#eaae62"/>
+ <path d="M550 93q14-11 37-5l89 10q12 2 12 9-71 11-144-3z" fill="#f7c777"/>
+ <path d="M680 101q10 0 8 6l-11 2z" fill="#b94d3c" stroke="none"/>
+ <circle cx="543" cy="81" r="5.3" fill="#193b39" stroke="none"/><circle cx="544.6" cy="79.5" r="1.5" fill="#fff2d5" stroke="none"/>
+ <path d="M530 72q5-5 13-5" fill="none" stroke-width="2.5"/>
+ <path d="M475 207q20 12 47 8l-4 15q-25 8-51-7z" fill="#40857b"/>
+ <path d="M452 212q-11-15-33-7-29 9-40 17 35 24 76 20 38-4 79-7l20 6q13-1 13-8-2-9-17-11l-24 1q-48 2-74-11z" fill="#fff2d5"/>
+ <path d="M394 221q20 11 47 10m-37-14q15 7 30 8" fill="none" stroke="#a07b55" stroke-width="2"/>
+</g>
+</svg>
+<footer><p>海风顺路，今天不赶时间。</p><button type="button" id="toggle" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path class="pause" d="M4 2h3v12H4zm5 0h3v12H9z"/><path class="play" d="m5 2 9 6-9 6z"/></svg><span>暂停骑行</span></button></footer>
+</main>
+<script>
+const page = document.documentElement;
+const button = document.querySelector('#toggle');
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+function setPaused(paused) {
+  page.toggleAttribute('data-paused', paused);
+  button.querySelector('span').textContent = paused ? '继续骑行' : '暂停骑行';
+}
+setPaused(reducedMotion.matches);
+button.hidden = false;
+button.addEventListener('click', () => {
+  page.setAttribute('data-motion', 'chosen');
+  setPaused(!page.hasAttribute('data-paused'));
+});
+reducedMotion.addEventListener('change', event => {
+  page.removeAttribute('data-motion');
+  setPaused(event.matches);
+});
+</script>
+</body>
+</html>

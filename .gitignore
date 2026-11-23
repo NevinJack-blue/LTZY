@@ -21,6 +21,14 @@ id_ed25519
 config.local.*
 settings.local.*
 
+# 本地账本与凭据
+.ltzy/
+*.sqlite*
+*.db
+*.db-*
+playwright-report/
+test-results/
+
 # ===== 系统与编辑器 =====
 .DS_Store
 Thumbs.db
