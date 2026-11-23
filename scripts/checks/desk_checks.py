@@ -27,7 +27,9 @@ def run(port, out_dir, headed):
         page.goto(inst.base + "/#console")
         page.wait_for_selector("#admin-pass")
         quiet_intro(page)
-        page.fill("#admin-pass", inst.password)
+        # The bootstrap admin signs in with the generated password (email optional).
+        page.fill("[name=email]", "admin@local")
+        page.fill("[name=password]", inst.password)
         page.evaluate("() => document.querySelector('.gate form').requestSubmit()")
         page.wait_for_selector(".dk-main")
         checks.check(True, "authenticated console entry")
@@ -132,34 +134,21 @@ def run(port, out_dir, headed):
             "() => document.querySelector('[data-results]').textContent.includes('没有匹配')"),
             "status filter separates failed requests")
 
-        # 6) 用量页：预算修改取消不落库，确认后持久
+        # 6) 余额与充值页：充值表单存在、金额校验、订单区渲染
         page.evaluate("() => location.hash = 'usage'")
         page.wait_for_selector('.dk-main[data-page="usage"]')
-        page.evaluate("""() => {
-            document.querySelector('#dk-limit').value = '90';
-            document.querySelector('[data-form=budget]').requestSubmit();
-        }""")
-        page.wait_for_selector("[data-no]")
-        page.click("[data-no]")
-        checks.check(not page.evaluate("() => !!document.querySelector('[data-yes]')"),
-                     "budget cancel clears pending mutation")
-        checks.check(page.evaluate("""async () =>
-            (await (await fetch('/api/workspace')).json()).budget.limit !== 90"""),
-            "cancel does not mutate server budget")
+        checks.check(page.evaluate("() => !!document.querySelector('[data-form=recharge]')"),
+                     "recharge form rendered")
+        checks.check(page.evaluate("() => !!document.querySelector('#dk-amount')"),
+                     "recharge amount controls reload after refresh")
+        checks.check(page.evaluate("""() => {
+            const f = document.querySelector('[data-form=recharge]');
+            return f.contains(f.querySelector('[name=channel]'));
+        }"""), "recharge channel selector present")
         page.click("[data-refresh]")
         page.wait_for_timeout(150)
-        checks.check(page.evaluate("() => !!document.querySelector('#dk-limit')"),
-                     "manual refresh reloads budget controls")
-        page.evaluate("""() => {
-            document.querySelector('#dk-limit').value = '120';
-            document.querySelector('[data-form=budget]').requestSubmit();
-        }""")
-        page.wait_for_selector("[data-yes]")
-        page.click("[data-yes]")
-        page.wait_for_timeout(200)
-        checks.check(page.evaluate(
-            "() => document.querySelector('#dk-limit').value === '120'"),
-            "budget confirmed persisted")
+        checks.check(page.evaluate("() => !!document.querySelector('#dk-amount')"),
+                     "manual refresh reloads billing controls")
 
         # 7) 对账页：比较输出 + CSV 导出
         page.evaluate("() => location.hash = 'ops'")

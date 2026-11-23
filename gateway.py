@@ -99,10 +99,16 @@ def micros(price, inp, out):
     return int((Decimal(price['input']) * inp + Decimal(price['output']) * out).to_integral_value(rounding=ROUND_CEILING))
 
 
-def funds(db):
-    limit, = db.execute('SELECT budget_micros FROM settings WHERE id=1').fetchone()
-    spent, held = db.execute('SELECT coalesce(sum(cost),0),coalesce(sum(reserved),0) FROM receipts').fetchone()
-    return limit, spent, held
+def funds(db, user_id=None):
+    """Per-user balance in production; the historic global budget as the None fallback."""
+    if user_id is None:
+        limit, = db.execute('SELECT budget_micros FROM settings WHERE id=1').fetchone()
+        spent, held = db.execute('SELECT coalesce(sum(cost),0),coalesce(sum(reserved),0) FROM receipts').fetchone()
+        return limit, spent, held
+    balance, = db.execute('SELECT balance_micros FROM users WHERE id=?', (user_id,)).fetchone()
+    spent, held = db.execute('SELECT coalesce(sum(cost),0),coalesce(sum(reserved),0) FROM receipts WHERE user_id=?',
+                             (user_id,)).fetchone()
+    return balance, spent, held
 
 
 def receipt(row):
@@ -117,15 +123,17 @@ def receipt(row):
     return r
 
 
-def csv_rows(db):
-    for row in db.execute('SELECT * FROM receipts ORDER BY rowid DESC'):
+def csv_rows(db, user_id=None):
+    sql = 'SELECT * FROM receipts ORDER BY rowid DESC' if not user_id else \
+        'SELECT * FROM receipts WHERE user_id=? ORDER BY rowid DESC'
+    for row in db.execute(sql, (user_id,) if user_id else ()):
         r = receipt(row)
         del r['trace']
         r.update({'price_' + k: v for k, v in r.pop('price').items()})
         yield r
 
 
-def snapshot(db, public=False):
+def snapshot(db, public=False, user_id=None):
     models, lanes = {}, []
     for idx, (lane, enabled) in enumerate(enabled_lanes(db), 1):
         mid = lane['model']
@@ -134,15 +142,19 @@ def snapshot(db, public=False):
             models[mid] = dict(id=mid, provider=lane['id'], kind=lane['kind'], enabled=enabled,
                                inputPrice=float(lane['input_price']), outputPrice=float(lane['output_price']),
                                context=lane['context'], capabilities=['chat', 'stream'])
-    total, ok, failed = db.execute("SELECT count(*),count(CASE WHEN status='success' THEN 1 END),count(CASE WHEN status IN ('failed','interrupted') THEN 1 END) FROM receipts").fetchone()
+    scope, args = ('WHERE user_id=?', (user_id,)) if user_id else ('', ())
+    total, ok, failed = db.execute(f"SELECT count(*),count(CASE WHEN status='success' THEN 1 END),count(CASE WHEN status IN ('failed','interrupted') THEN 1 END) FROM receipts {scope}", args).fetchone()
     result = dict(models=list(models.values()), status=dict(updatedAt=now(), requests=total, successful=ok,
                   failed=failed, enabledLanes=sum(x['enabled'] for x in lanes), totalLanes=len(lanes)))
     if not public:
-        limit, spent, held = funds(db)
+        limit, spent, held = funds(db, user_id)
         usage = [dict(model=m, requests=n, inputTokens=i, outputTokens=o, cost=c/MILLION) for m,n,i,o,c in
-                 db.execute('SELECT model,count(*),sum(inputTokens),sum(outputTokens),coalesce(sum(cost),0) FROM receipts GROUP BY model ORDER BY model')]
-        result['pending'] = [receipt(r) for r in db.execute("SELECT * FROM receipts WHERE settlement='pending' ORDER BY rowid")]
-        result.update(lanes=lanes, usage=usage, requests=[receipt(r) for r in db.execute('SELECT * FROM receipts ORDER BY rowid DESC LIMIT 200')],
+                 db.execute(f'SELECT model,count(*),sum(inputTokens),sum(outputTokens),coalesce(sum(cost),0) FROM receipts {scope} GROUP BY model ORDER BY model', args)]
+        pending_sql = "SELECT * FROM receipts WHERE settlement='pending' ORDER BY rowid" if not user_id else \
+            "SELECT * FROM receipts WHERE user_id=? AND settlement='pending' ORDER BY rowid"
+        result['pending'] = [receipt(r) for r in db.execute(pending_sql, args)]
+        result.update(lanes=lanes, usage=usage,
+                      requests=[receipt(r) for r in db.execute(f'SELECT * FROM receipts {scope} ORDER BY rowid DESC LIMIT 200', args)],
                       budget=dict(limit=limit/MILLION, spent=spent/MILLION, reserved=held/MILLION, remaining=(limit-spent-held)/MILLION))
     return result
 
@@ -152,9 +164,9 @@ def reconcile(db, rid, inp, out):
     if not row or not all(type(t) is int and 0 <= t <= 10_000_000 for t in (inp,out)):
         raise ValueError('Invalid receipt or usage')
     cost = micros(json.loads(row['price']), inp, out)
-    limit, spent, held = funds(db)
+    limit, spent, held = funds(db, row['user_id'])
     if cost > limit - spent - held + row['reserved']:
-        raise ValueError('Increase project budget before settlement')
+        raise ValueError('Top up the account balance before settlement')
     trace = json.loads(row['trace']) + [dict(event='reconciled', lane=row['lane'], ms=row['latencyMs'])]
     db.execute("UPDATE receipts SET settlement='settled',inputTokens=?,outputTokens=?,cost=?,reserved=0,trace=? WHERE id=?", (inp,out,cost,json.dumps(trace),rid))
 
@@ -173,12 +185,16 @@ class Rejected(Exception):
 def authenticate(h, db):
     header = h.headers.get('Authorization', '').split()
     if len(header) == 2 and header[0].lower() == 'bearer':
-        digest = hashlib.sha256(header[1].encode()).hexdigest()
-        row = db.execute('SELECT id,scope FROM api_keys WHERE digest=? AND revoked=0', (digest,)).fetchone()
+        row = db.execute('''SELECT k.id,k.scope,u.id AS uid,u.status
+                            FROM api_keys k JOIN users u ON u.id=k.user_id
+                            WHERE k.digest=? AND k.revoked=0''',
+                         (hashlib.sha256(header[1].encode()).hexdigest(),)).fetchone()
         if row:
-            if h.command != 'GET' and row[1] != 'chat':
+            if row['status'] != 'active':
+                raise Problem(403, 'account_disabled')
+            if h.command != 'GET' and row['scope'] != 'chat':
                 raise Problem(403, 'insufficient_scope')
-            return row[0]
+            return row['id'], row['uid']
     raise Problem(401, 'invalid_api_key')
 
 
@@ -300,7 +316,7 @@ def upstream(lane,p,rid):
 def reserve(db,h,p,rid):
     db.execute('BEGIN IMMEDIATE')
     with db:
-        key = authenticate(h,db)  # Linearize revocation and budget admission together.
+        key,uid = authenticate(h,db)  # Linearize revocation and balance admission together.
         matches = [(l,on) for l,on in enabled_lanes(db) if l['model']==p['model']]
         if not matches:
             raise Problem(404,'model_not_found')
@@ -314,13 +330,13 @@ def reserve(db,h,p,rid):
         # No tokenizer guessing for HTTPS lanes: hold full configured input context plus output cap.
         local_input=sum(len(m['content'])+1 for m in p['messages'])
         amount=max(micros(price_of(l), local_input if l['kind']=='local-test' else l['context'],p['max_tokens']) for l in candidates)
-        limit,spent,held=funds(db)
+        limit,spent,held=funds(db,uid)
         if amount > limit-spent-held:
-            raise Problem(402,'budget_exceeded')
+            raise Problem(402,'insufficient_balance')
         first=candidates[0]
-        db.execute('''INSERT INTO receipts(id,createdAt,model,lane,keyId,status,settlement,reserved,trace,price)
-                      VALUES(?,?,?,?,?,'running','reserved',?,'[]',?)''',
-                   (rid,now(),p['model'],first['id'],key,amount,json.dumps(price_of(first))))
+        db.execute('''INSERT INTO receipts(id,createdAt,model,lane,keyId,status,settlement,reserved,trace,price,user_id)
+                      VALUES(?,?,?,?,?,'running','reserved',?,'[]',?,?)''',
+                   (rid,now(),p['model'],first['id'],key,amount,json.dumps(price_of(first)),uid))
     return candidates,amount
 
 

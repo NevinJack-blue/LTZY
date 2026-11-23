@@ -49,9 +49,19 @@ class GatewayTests(unittest.TestCase):
         self.db=sqlite3.connect(self.path)
         self.addCleanup(self.db.close)
         self.db.row_factory=sqlite3.Row
-        self.db.executescript('''CREATE TABLE settings(id,budget_micros); INSERT INTO settings VALUES(1,25000000);
-            CREATE TABLE api_keys(id,digest,revoked,scope); CREATE TABLE lane_settings(id,enabled);''')
-        self.db.execute('INSERT INTO api_keys VALUES(?,?,0,?)',('key_1',hashlib.sha256(b'client-test').hexdigest(),'chat'))
+        self.db.executescript('''CREATE TABLE users(id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
+            role TEXT NOT NULL, status TEXT NOT NULL, balance_micros INTEGER NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE settings(id INTEGER PRIMARY KEY CHECK(id=1), budget_micros INTEGER NOT NULL); INSERT INTO settings VALUES(1,25000000);
+            CREATE TABLE api_keys(id TEXT PRIMARY KEY, digest TEXT UNIQUE NOT NULL, revoked INTEGER NOT NULL DEFAULT 0,
+            scope TEXT NOT NULL DEFAULT 'chat', user_id TEXT NOT NULL DEFAULT '');
+            CREATE TABLE lane_settings(id TEXT PRIMARY KEY, enabled INTEGER NOT NULL);
+            CREATE TABLE receipts(id TEXT PRIMARY KEY, createdAt TEXT NOT NULL, model TEXT NOT NULL, lane TEXT,
+            keyId TEXT NOT NULL, status TEXT NOT NULL, settlement TEXT NOT NULL, inputTokens INTEGER, outputTokens INTEGER,
+            cost INTEGER, reserved INTEGER NOT NULL, latencyMs INTEGER, trace TEXT NOT NULL, price TEXT NOT NULL,
+            user_id TEXT NOT NULL DEFAULT '');
+            INSERT INTO users VALUES('usr_admin','admin@local','s$x','admin','active',25000000,'2026-01-01');''')
+        self.db.execute('INSERT INTO api_keys VALUES(?,?,0,?,?)',
+                        ('key_1',hashlib.sha256(b'client-test').hexdigest(),'chat','usr_admin'))
         env=patch.dict(os.environ)
         env.start()
         self.addCleanup(env.stop)
@@ -106,7 +116,7 @@ class GatewayTests(unittest.TestCase):
 
     def test_concurrent_admission(self):
         with self.db:
-            self.db.execute('UPDATE settings SET budget_micros=39')
+            self.db.execute('UPDATE users SET balance_micros=39')
         entered,release=threading.Event(),threading.Event()
         def slow(*args):
             entered.set()

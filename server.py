@@ -4,8 +4,11 @@ import csv
 import hashlib
 import io
 import json
+import mail
 import mimetypes
 import os
+import pay
+import re
 import secrets
 import sqlite3
 import time
@@ -17,21 +20,108 @@ from http.cookies import SimpleCookie, CookieError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urlsplit, parse_qsl
 
 WEB = Path(__file__).resolve().parent / 'web'
 TTL = 12 * 3600
 COOKIE = 'ltzy_session'
 SCHEMA = '''
+CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL,
+ password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
+ status TEXT NOT NULL DEFAULT 'active', balance_micros INTEGER NOT NULL DEFAULT 0,
+ created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS api_keys(id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL,
- digest TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
+ digest TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0,
+ scope TEXT NOT NULL DEFAULT 'chat', user_id TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY CHECK(id=1), budget_micros INTEGER NOT NULL);
-INSERT OR IGNORE INTO settings VALUES(1,25000000);
+INSERT OR IGNORE INTO settings(id,budget_micros) VALUES(1,25000000);
 CREATE TABLE IF NOT EXISTS lane_settings(id TEXT PRIMARY KEY, enabled INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS reconciliation_audit(receipt_id TEXT PRIMARY KEY, note TEXT NOT NULL, at TEXT NOT NULL,
  input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS sessions(digest TEXT PRIMARY KEY, expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions(digest TEXT PRIMARY KEY, expires INTEGER NOT NULL, user_id TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS receipts(id TEXT PRIMARY KEY, createdAt TEXT NOT NULL, model TEXT NOT NULL, lane TEXT,
+ keyId TEXT NOT NULL, status TEXT NOT NULL, settlement TEXT NOT NULL,
+ inputTokens INTEGER, outputTokens INTEGER, cost INTEGER, reserved INTEGER NOT NULL,
+ latencyMs INTEGER, trace TEXT NOT NULL, price TEXT NOT NULL, user_id TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS recharges(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, out_trade_no TEXT UNIQUE NOT NULL,
+ amount_micros INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending', channel TEXT,
+ trade_no TEXT, created_at TEXT NOT NULL, paid_at TEXT);
+CREATE TABLE IF NOT EXISTS email_tokens(code TEXT PRIMARY KEY, email TEXT NOT NULL,
+ purpose TEXT NOT NULL, expires INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS balance_audit(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, delta_micros INTEGER NOT NULL,
+ reason TEXT NOT NULL, by_user TEXT, at TEXT NOT NULL);
 '''
+
+MIGRATIONS = (
+    ("ALTER TABLE api_keys ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE receipts ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN registration_enabled INTEGER NOT NULL DEFAULT 1",),
+    ("ALTER TABLE settings ADD COLUMN email_verification INTEGER NOT NULL DEFAULT 1",),
+    ("ALTER TABLE settings ADD COLUMN smtp_host TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN smtp_port INTEGER NOT NULL DEFAULT 0",),
+    ("ALTER TABLE settings ADD COLUMN smtp_user TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN smtp_pass TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN smtp_from TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN epay_url TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN epay_pid TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN epay_key TEXT NOT NULL DEFAULT ''",),
+    ("ALTER TABLE settings ADD COLUMN epay_version TEXT NOT NULL DEFAULT 'v1'",),
+    ("ALTER TABLE settings ADD COLUMN site_url TEXT NOT NULL DEFAULT ''",),
+)
+
+
+def migrate(db_path, data_dir):
+    db = connect(db_path)
+    try:
+        db.executescript(SCHEMA)
+        for (sql,) in MIGRATIONS:
+            try:
+                db.execute(sql)
+            except sqlite3.OperationalError:
+                pass  # Column already exists.
+        # Existing rows keep working: receipts/keys created before multi-user belong to admin.
+        admin = ensure_admin(db, data_dir)
+        db.execute("UPDATE api_keys SET user_id=? WHERE user_id=''", (admin['id'],))
+        db.execute("UPDATE receipts SET user_id=? WHERE user_id=''", (admin['id'],))
+        db.execute("UPDATE sessions SET user_id=? WHERE user_id=''", (admin['id'],))
+        # Keep the historic global budget in sync as the admin balance floor.
+        budget, = db.execute('SELECT budget_micros FROM settings WHERE id=1').fetchone()
+        db.execute('UPDATE users SET balance_micros=max(balance_micros,?) WHERE id=? AND role=?',
+                   (budget, admin['id'], 'admin'))
+        db.commit()
+    finally:
+        db.close()
+
+
+def ensure_admin(db, data_dir):
+    """Bootstrap the holder account; its initial password is the generated admin password file."""
+    row = db.execute("SELECT * FROM users WHERE role='admin' ORDER BY created_at LIMIT 1").fetchone()
+    if row:
+        return row
+    password_file = Path(data_dir) / 'admin-password.txt'
+    if not password_file.is_file():
+        bootstrap_password(password_file)
+    password = password_file.read_text(encoding='utf-8').strip()
+    uid = 'usr_' + secrets.token_hex(10)
+    db.execute("INSERT OR IGNORE INTO users VALUES(?,?,?,?,?,?,?)",
+               (uid, 'admin@local', hash_password(password), 'admin', 'active',
+                25_000_000, datetime.now(timezone.utc).isoformat()))
+    db.commit()
+    return db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+
+
+def hash_password(password, salt=None):
+    salt = salt or secrets.token_hex(16)
+    return salt + '$' + hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+
+
+def verify_password(stored, password):
+    try:
+        salt, _ = stored.split('$', 1)
+    except ValueError:
+        return False
+    return secrets.compare_digest(hash_password(password, salt), stored)
 
 
 class Problem(Exception):
@@ -84,6 +174,207 @@ def bootstrap_password(path):
     if not password:
         raise ValueError('Empty admin password file')
     return digest(password)
+
+
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$')
+
+
+def valid_email(value):
+    return isinstance(value, str) and len(value) <= 200 and bool(EMAIL_RE.fullmatch(value.strip().lower()))
+
+
+def settings_row(db):
+    return db.execute('SELECT * FROM settings WHERE id=1').fetchone()
+
+
+def require_admin(me):
+    if me['role'] != 'admin':
+        raise Problem(403, '需要管理员权限')
+
+
+def user_view(row):
+    return {'id': row['id'], 'email': row['email'], 'role': row['role'],
+            'status': row['status'], 'balance': row['balance_micros'] / 1e6,
+            'created_at': row['created_at']}
+
+
+def issue_session(db, user_id):
+    token = secrets.token_urlsafe(32)
+    db.execute('DELETE FROM sessions WHERE expires<=?', (time.time(),))
+    db.execute('INSERT INTO sessions VALUES(?,?,?)', (digest(token), int(time.time()) + TTL, user_id))
+    return token
+
+
+def consume_email_code(db, email, code):
+    if not isinstance(code, str) or not code.isdigit() or len(code) != 6:
+        raise Problem(400, '请输入 6 位邮箱验证码')
+    row = db.execute('SELECT * FROM email_tokens WHERE code=? AND email=? AND purpose=?',
+                     (code, email.strip().lower(), 'register')).fetchone()
+    if not row or row['used'] or row['expires'] < time.time():
+        raise Problem(400, '验证码无效或已过期')
+    db.execute('UPDATE email_tokens SET used=1 WHERE code=?', (code,))
+
+
+def create_user(db, obj, cfg):
+    email = obj.get('email')
+    if not valid_email(email):
+        raise Problem(400, '请输入有效的邮箱地址')
+    email = email.strip().lower()
+    password = obj.get('password')
+    if not isinstance(password, str) or len(password) < 8 or len(password) > 512:
+        raise Problem(400, '密码至少需要 8 个字符')
+    if not cfg['registration_enabled']:
+        raise Problem(403, '注册暂未开放')
+    if db.execute('SELECT 1 FROM users WHERE lower(email)=?', (email,)).fetchone():
+        raise Problem(409, '该邮箱已注册')
+    if cfg['email_verification']:
+        consume_email_code(db, email, obj.get('code'))
+    uid = 'usr_' + secrets.token_hex(10)
+    db.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?)',
+               (uid, email, hash_password(password), 'user', 'active', 0,
+                datetime.now(timezone.utc).isoformat()))
+    return db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+
+
+def issue_email_code(db, email, now_ts):
+    if not valid_email(email):
+        raise Problem(400, '请输入有效的邮箱地址')
+    email = email.strip().lower()
+    cfg = settings_row(db)
+    if not cfg['registration_enabled']:
+        raise Problem(403, '注册暂未开放')
+    if db.execute('SELECT 1 FROM users WHERE lower(email)=?', (email,)).fetchone():
+        raise Problem(409, '该邮箱已注册')
+    if not mail.configured(cfg):
+        raise Problem(503, '邮件服务尚未配置，请联系管理员')
+    code = f'{secrets.randbelow(1000000):06d}'
+    db.execute('INSERT INTO email_tokens VALUES(?,?,?,?,0)',
+               (code, email, 'register', int(now_ts) + 600))
+    try:
+        mail.send(cfg, email, 'LTZY 注册验证码',
+                  f'你的 LTZY 注册验证码是 {code}，10 分钟内有效。若非本人操作请忽略本邮件。')
+    except OSError as exc:
+        raise Problem(502, '邮件发送失败，请检查 SMTP 配置或稍后重试') from None
+    return code
+
+
+def handle_pay_notify(db, params):
+    """Rainbow-epay async notification: verify MD5, credit exactly once, answer 'success'."""
+    cfg = settings_row(db)
+    if not pay.verify(params, cfg['epay_key'] or ''):
+        return 'fail'
+    order = db.execute('SELECT * FROM recharges WHERE out_trade_no=?',
+                       (params.get('out_trade_no', ''),)).fetchone()
+    if not order or order['status'] == 'paid':
+        return 'success'
+    if params.get('trade_status', 'TRADE_SUCCESS') != 'TRADE_SUCCESS':
+        return 'success'
+    if int(Decimal(params.get('money', '0')) * 1000000) != order['amount_micros']:
+        return 'fail'
+    db.execute("UPDATE recharges SET status='paid', trade_no=?, paid_at=? WHERE id=? AND status='pending'",
+               (params.get('trade_no', ''), datetime.now(timezone.utc).isoformat(), order['id']))
+    db.execute('UPDATE users SET balance_micros=balance_micros+? WHERE id=?',
+               (order['amount_micros'], order['user_id']))
+    db.execute('INSERT INTO balance_audit VALUES(?,?,?,?,?,?)',
+               ('bal_' + secrets.token_hex(10), order['user_id'], order['amount_micros'],
+                'recharge ' + order['out_trade_no'], None, datetime.now(timezone.utc).isoformat()))
+    return 'success'
+
+
+def admin_update_user(db, obj, me):
+    uid = text(obj, 'id', 120)
+    action = text(obj, 'action', 20)
+    target = db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+    if not target:
+        raise Problem(404, '用户不存在')
+    if action == 'balance':
+        try:
+            delta = Decimal(str(obj.get('delta')))
+            if not delta.is_finite() or abs(delta) > 1_000_000 or delta.as_tuple().exponent < -6:
+                raise ValueError()
+        except (ValueError, InvalidOperation, TypeError):
+            raise Problem(400, '调整金额需为最多 6 位小数的美元金额')
+        amount = int(delta * 1_000_000)
+        if target['balance_micros'] + amount < 0:
+            raise Problem(409, '调整后余额不能低于零')
+        db.execute('UPDATE users SET balance_micros=balance_micros+? WHERE id=?', (amount, uid))
+        db.execute('INSERT INTO balance_audit VALUES(?,?,?,?,?,?)',
+                   ('bal_' + secrets.token_hex(10), uid, amount,
+                    text(obj, 'reason', 200) if isinstance(obj.get('reason'), str) and obj['reason'].strip() else 'admin adjustment',
+                    me['id'], datetime.now(timezone.utc).isoformat()))
+    elif action == 'ban':
+        if target['role'] == 'admin':
+            raise Problem(409, '不能封禁管理员账号')
+        db.execute("UPDATE users SET status='banned' WHERE id=?", (uid,))
+        db.execute('DELETE FROM sessions WHERE user_id=?', (uid,))
+    elif action == 'unban':
+        db.execute("UPDATE users SET status='active' WHERE id=?", (uid,))
+    elif action == 'role':
+        new_role = obj.get('role')
+        if new_role not in ('user', 'admin'):
+            raise Problem(400, 'Role must be user or admin')
+        if target['role'] == 'admin' and new_role == 'user':
+            admins, = db.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()
+            if admins <= 1:
+                raise Problem(409, '至少保留一位管理员')
+        db.execute('UPDATE users SET role=? WHERE id=?', (new_role, uid))
+    else:
+        raise Problem(400, '未知操作')
+    return user_view(db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone())
+
+
+def admin_settings_view(cfg):
+    keys = ('registration_enabled', 'email_verification', 'smtp_host', 'smtp_port', 'smtp_user',
+            'smtp_from', 'epay_url', 'epay_pid', 'epay_version', 'site_url')
+    view = {k: cfg[k] for k in keys}
+    view['emailVerification'] = bool(cfg['email_verification'])
+    view['registrationEnabled'] = bool(cfg['registration_enabled'])
+    view['smtp_configured'] = mail.configured(cfg)
+    view['epay_configured'] = bool(cfg['epay_key'])
+    return view
+
+
+def apply_admin_settings(db, obj):
+    cfg = settings_row(db)
+    sets = {}
+    for key in ('smtp_host', 'smtp_user', 'smtp_from', 'epay_url', 'epay_pid', 'site_url'):
+        if key in obj:
+            val = obj[key]
+            if val is None:
+                continue
+            if not isinstance(val, str) or len(val) > 300:
+                raise Problem(400, 'Invalid ' + key)
+            if key == 'site_url' and val and not val.startswith(('http://', 'https://')):
+                raise Problem(400, 'site_url must start with http(s)://')
+            if key == 'smtp_host' and val and not pay.safe_host(val):
+                raise Problem(400, 'Invalid smtp_host')
+            sets[key] = val
+    if 'smtp_port' in obj:
+        port = obj['smtp_port']
+        if port is not None:
+            if type(port) is not int or not 0 <= port <= 65535:
+                raise Problem(400, 'Invalid smtp_port')
+            sets['smtp_port'] = port
+    if 'smtp_pass' in obj and isinstance(obj['smtp_pass'], str) and obj['smtp_pass']:
+        sets['smtp_pass'] = obj['smtp_pass']
+    if 'epay_key' in obj and isinstance(obj['epay_key'], str) and obj['epay_key']:
+        sets['epay_key'] = obj['epay_key']
+    if 'epay_version' in obj:
+        if obj['epay_version'] not in ('v1', 'v2'):
+            raise Problem(400, 'epay_version must be v1 or v2')
+        sets['epay_version'] = obj['epay_version']
+    for flag_key, column in (('registrationEnabled', 'registration_enabled'),
+                             ('emailVerification', 'email_verification')):
+        if flag_key in obj:
+            flag = obj[flag_key]
+            if not isinstance(flag, bool):
+                raise Problem(400, 'Expected boolean ' + flag_key)
+            sets[column] = int(flag)
+    if not sets:
+        return cfg
+    assignments = ','.join(f'{k}=?' for k in sets)
+    db.execute(f'UPDATE settings SET {assignments} WHERE id=1', tuple(sets.values()))
+    return settings_row(db)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -144,6 +435,9 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith('/v1/'):
                 self.server.gateway.dispatch(self, self.server.db_path)
                 return
+            if path == '/pay/notify':
+                self.pay_notify()
+                return
             if path.startswith('/api/'):
                 with closing(connect(self.server.db_path)) as db:
                     result, headers = self.api(db,path)
@@ -172,6 +466,27 @@ class Handler(BaseHTTPRequestHandler):
 
     do_GET = do_POST = run
 
+    def pay_notify(self):
+        """Gateway-to-server callback: no cookies, plain-text answer."""
+        try:
+            params = dict(parse_qsl(urlsplit(self.path).query, keep_blank_values=True))
+            with closing(connect(self.server.db_path)) as db:
+                answer = handle_pay_notify(db, params)
+                db.commit()
+            self.reply(200, answer.encode('utf-8'), 'text/plain; charset=utf-8')
+        except Exception:
+            self.reply(200, b'fail', 'text/plain; charset=utf-8')
+
+    def viewer(self,db):
+        sid = self.session()
+        row = db.execute('''SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id
+                            WHERE s.digest=? AND s.expires>?''',(sid,time.time())).fetchone()
+        if not row:
+            raise Problem(401,'请先登录')
+        if row['status'] != 'active':
+            raise Problem(403,'账号已被封禁')
+        return row
+
     def api(self,db,path):
         gw = self.server.gateway
         post = self.command == 'POST'
@@ -181,40 +496,40 @@ class Handler(BaseHTTPRequestHandler):
         db.execute('BEGIN IMMEDIATE' if post else 'BEGIN')
         if path == '/api/public' and not post:
             return gw.snapshot(db,public=True), headers
+        if path == '/api/config' and not post:
+            cfg = settings_row(db)
+            return {'registration': bool(cfg['registration_enabled']),
+                    'emailVerification': bool(cfg['email_verification'])}, headers
         if path == '/api/login' and post:
-            with self.server.login_lock:
-                failures = self.server.failures
-                now = time.monotonic()
-                while failures and now - failures[0] > 60:
-                    failures.popleft()
-                if len(failures) >= 10:
-                    raise Problem(429,'Too many login attempts; retry in one minute')
-                password = obj.get('password')
-                if not isinstance(password,str) or not secrets.compare_digest(digest(password),self.server.password_digest):
-                    failures.append(now)
-                    raise Problem(401,'Invalid password')
-                failures.clear()
-            token = secrets.token_urlsafe(32)
-            db.execute('DELETE FROM sessions WHERE expires<=? OR digest=?',(time.time(),sid))
-            db.execute('INSERT INTO sessions VALUES(?,?)',(digest(token),int(time.time())+TTL))
+            return self.login(db,obj,sid,headers), headers
+        if path == '/api/register' and post:
+            user = create_user(db,obj,settings_row(db))
+            token = issue_session(db,user['id'])
             headers['Set-Cookie'] = f'{COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={TTL}'
+            return {'ok':True,'role':user['role']},headers
+        if path == '/api/email/send-code' and post:
+            with self.server.login_lock:
+                failures = self.server.registrations
+                now = time.monotonic()
+                while failures and now - failures[0] > 600:
+                    failures.popleft()
+                if len(failures) >= 30:
+                    raise Problem(429,'验证码请求过于频繁，请稍后再试')
+                code = issue_email_code(db,obj.get('email'),time.time())
+                failures.append(now)
             return {'ok':True},headers
-        if not db.execute('SELECT 1 FROM sessions WHERE digest=? AND expires>?',(sid,time.time())).fetchone():
-            raise Problem(401,'Administrator login required')
+        if path == '/api/login':
+            raise Problem(405,'Use POST')
+        me = self.viewer(db)
         if post and path == '/api/logout':
             db.execute('DELETE FROM sessions WHERE digest=?',(sid,))
             headers['Set-Cookie'] = f'{COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'
         elif not post and path == '/api/workspace':
-            view = gw.snapshot(db)
-            for receipt in view['requests']:
-                row = db.execute('SELECT note,at,input_tokens AS inputTokens,output_tokens AS outputTokens FROM reconciliation_audit WHERE receipt_id=?',(receipt['id'],)).fetchone()
-                if row:
-                    receipt['audit'] = dict(row)
-            view['keys'] = [key_view(r) for r in db.execute('SELECT * FROM api_keys ORDER BY created_at DESC')]
-            return view,headers
+            return self.workspace(db,gw,me), headers
         elif not post and path == '/api/usage.csv':
             headers['Content-Disposition'] = 'attachment; filename="ltzy-usage.csv"'
-            return export_csv(gw.csv_rows(db)),headers
+            rows = gw.csv_rows(db) if me['role']=='admin' else gw.csv_rows(db,user_id=me['id'])
+            return export_csv(rows),headers
         elif post and path == '/api/keys':
             name = text(obj,'name',80)
             raw = 'ltzy_' + secrets.token_urlsafe(32)
@@ -222,19 +537,59 @@ class Handler(BaseHTTPRequestHandler):
             scope = obj.get('scope','chat')
             if scope not in ('chat','read'):
                 raise Problem(400,'Invalid scope')
-            db.execute('INSERT INTO api_keys VALUES(?,?,?,?,?,0,?)',(kid,name,raw[:12],digest(raw),datetime.now(timezone.utc).isoformat(),scope))
+            db.execute('INSERT INTO api_keys VALUES(?,?,?,?,?,0,?,?)',
+                       (kid,name,raw[:12],digest(raw),datetime.now(timezone.utc).isoformat(),scope,me['id']))
             row = db.execute('SELECT * FROM api_keys WHERE id=?',(kid,)).fetchone()
             return {'secret':raw,'key':key_view(row)},headers
         elif post and path == '/api/keys/revoke':
-            if not db.execute('UPDATE api_keys SET revoked=1 WHERE id=?',(text(obj,'id',120),)).rowcount:
-                raise Problem(404,'Unknown key')
-        elif post and path == '/api/budget':
-            limit = micros(obj.get('limit'))
-            budget = gw.snapshot(db)['budget']
-            if limit < micros(budget['spent']) + micros(budget['reserved']):
-                raise Problem(409,'Budget cannot be lower than spent plus reserved')
-            db.execute('UPDATE settings SET budget_micros=? WHERE id=1',(limit,))
+            if not db.execute('UPDATE api_keys SET revoked=1 WHERE id=? AND user_id=?',
+                              (text(obj,'id',120),me['id'])).rowcount:
+                raise Problem(404,'密钥不存在')
+        elif post and path == '/api/recharge':
+            return self.recharge(db,obj,me),headers
+        elif not post and path == '/api/recharges':
+            rows = db.execute('SELECT * FROM recharges WHERE user_id=? ORDER BY rowid DESC LIMIT 100',
+                              (me['id'],)).fetchall()
+            return {'orders':[{'id':r['id'],'amount':r['amount_micros']/1e6,'status':r['status'],
+                               'channel':r['channel'],'tradeNo':r['trade_no'],
+                               'createdAt':r['created_at'],'paidAt':r['paid_at']} for r in rows]},headers
+        elif not post and path == '/api/admin/overview':
+            require_admin(me)
+            users = [user_view(r) for r in db.execute('SELECT * FROM users ORDER BY created_at')]
+            for u in users:
+                spend, held = db.execute('SELECT coalesce(sum(cost),0),coalesce(sum(reserved),0) FROM receipts WHERE user_id=?',(u['id'],)).fetchone()
+                keys, = db.execute('SELECT COUNT(*) FROM api_keys WHERE user_id=? AND revoked=0',(u['id'],)).fetchone()
+                u['spent'] = spend/1e6
+                u['keys'] = keys
+                u['balance'] = (u['balance']*1e6 - spend - held)/1e6
+            return {'users':users,
+                    'recharges':[dict(r) for r in db.execute(
+                        'SELECT id,out_trade_no AS outTradeNo,amount_micros/1e6 AS amount,status,channel,trade_no AS tradeNo,created_at AS createdAt,paid_at AS paidAt FROM recharges ORDER BY rowid DESC LIMIT 100')]},headers
+        elif post and path == '/api/admin/user':
+            require_admin(me)
+            return admin_update_user(db,obj,me),headers
+        elif path == '/api/admin/settings':
+            if not post:
+                require_admin(me)
+                return admin_settings_view(settings_row(db)),headers
+            require_admin(me)
+            apply_admin_settings(db,obj)
+            return admin_settings_view(settings_row(db)),headers
+        elif post and path == '/api/admin/test-email':
+            require_admin(me)
+            to = obj.get('to')
+            if not valid_email(to):
+                raise Problem(400,'请输入有效的邮箱地址')
+            cfg = settings_row(db)
+            if not mail.configured(cfg):
+                raise Problem(400,'SMTP 尚未配置')
+            try:
+                mail.send(cfg,to.strip().lower(),'LTZY 测试邮件','这是一封 LTZY 系统设置页发出的测试邮件。收到即说明 SMTP 配置正确。')
+            except OSError:
+                raise Problem(502,'邮件发送失败，请检查 SMTP 主机、端口与凭据') from None
+            return {'ok':True},headers
         elif post and path == '/api/reconcile':
+            require_admin(me)
             rid = text(obj,'id',120)
             note = text(obj,'note',240)
             counts = [obj.get(k) for k in ('inputTokens','outputTokens')]
@@ -246,6 +601,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 raise Problem(409,'Receipt is not pending or usage cannot be reconciled')
         elif post and path == '/api/lanes':
+            require_admin(me)
             lid = text(obj,'id',120)
             enabled = obj.get('enabled')
             if not isinstance(enabled,bool):
@@ -260,6 +616,71 @@ class Handler(BaseHTTPRequestHandler):
         else:
             raise Problem(404,'Not found')
         return {'ok':True},headers
+
+    def login(self,db,obj,sid,headers):
+        with self.server.login_lock:
+            failures = self.server.failures
+            now = time.monotonic()
+            while failures and now - failures[0] > 60:
+                failures.popleft()
+            if len(failures) >= 10:
+                raise Problem(429,'Too many login attempts; retry in one minute')
+            email = obj.get('email')
+            password = obj.get('password')
+            user = None
+            if isinstance(email,str) and '@' in email:
+                user = db.execute('SELECT * FROM users WHERE lower(email)=?',(email.strip().lower(),)).fetchone()
+            elif isinstance(password,str):
+                user = db.execute("SELECT * FROM users WHERE email='admin@local'").fetchone()
+            if not user or not isinstance(password,str) or not verify_password(user['password_hash'],password):
+                failures.append(now)
+                raise Problem(401,'邮箱或密码不正确，请重试。')
+            if user['status'] != 'active':
+                raise Problem(403,'账号已被封禁')
+            failures.clear()
+        token = issue_session(db,user['id'])
+        db.execute('DELETE FROM sessions WHERE expires<=?',(time.time(),))
+        headers['Set-Cookie'] = f'{COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={TTL}'
+        return {'ok':True,'role':user['role'],'email':user['email']}
+
+    def workspace(self,db,gw,me):
+        mine = '' if me['role']=='admin' else ' WHERE user_id=?'
+        args = () if me['role']=='admin' else (me['id'],)
+        view = gw.snapshot(db,user_id=me['id'])
+        view['me'] = {'email':me['email'],'role':me['role'],'balance':view['budget']['remaining']}
+        for receipt in view['requests']:
+            row = db.execute('SELECT note,at,input_tokens AS inputTokens,output_tokens AS outputTokens FROM reconciliation_audit WHERE receipt_id=?',(receipt['id'],)).fetchone()
+            if row:
+                receipt['audit'] = dict(row)
+        view['keys'] = [key_view(r) for r in db.execute(
+            'SELECT * FROM api_keys'+mine+' ORDER BY created_at DESC',args)]
+        return view
+
+    def recharge(self,db,obj,me):
+        cfg = settings_row(db)
+        if not cfg['epay_url'] or not cfg['epay_key'] or not cfg['epay_pid']:
+            raise Problem(503,'支付通道尚未配置')
+        amount = micros(obj.get('amount'))
+        if not 10_000 <= amount <= 10_000_000_000:
+            raise Problem(400,'充值金额需在 $0.01 and $10000')
+        pay_type = obj.get('channel','alipay')
+        if pay_type not in ('alipay','wxpay','qqpay'):
+            raise Problem(400,'不支持的支付渠道')
+        site = (cfg['site_url'] or '').rstrip('/')
+        if not site:
+            raise Problem(400,'站点公网地址未配置，请在系统设置中填写')
+        oid = 'rch_' + secrets.token_hex(10)
+        out_trade_no = 'LT' + secrets.token_hex(8)
+        db.execute('''INSERT INTO recharges(id,user_id,out_trade_no,amount_micros,status,channel,created_at)
+                      VALUES(?,?,?,?,?,?,?)''',
+                   (oid,me['id'],out_trade_no,amount,'pending',pay_type,datetime.now(timezone.utc).isoformat()))
+        params = pay.pay_params(cfg,out_trade_no,'LTZY credit',f'{amount/1e6:.2f}',
+                                site+'/pay/notify',site+'/#billing',pay_type)
+        if cfg['epay_version'] == 'v2':
+            result = pay.v2_order(cfg,params)
+            return {'order':oid,'payurl':result.get('payurl'),
+                    'qrcode':result.get('qrcode'),'mode':'v2'}
+        return {'order':oid,'payurl':pay.v1_payurl(cfg,params),'mode':'v1'}
 
 
 def export_csv(rows):
@@ -317,6 +738,7 @@ def create_server(data_dir='.ltzy', port=8000, host='127.0.0.1', gateway_module=
                 db.execute("ALTER TABLE api_keys ADD COLUMN scope TEXT NOT NULL DEFAULT 'chat' CHECK(scope IN ('read','chat'))")
             gateway_module.init(db)
             db.commit()
+        migrate(db_path, root)
         srv = LocalServer((host,port),Handler)
     except BaseException:
         instance_lock.close()
@@ -327,6 +749,7 @@ def create_server(data_dir='.ltzy', port=8000, host='127.0.0.1', gateway_module=
     srv.password_digest = password_digest
     srv.login_lock = Lock()
     srv.failures = deque()
+    srv.registrations = deque()
     srv.hosts = {f'{h}:{srv.server_port}' for h in ('127.0.0.1','localhost')}
     if srv.server_port == 80:
         srv.hosts.update(('127.0.0.1','localhost'))

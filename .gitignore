@@ -59,3 +59,7 @@ build/
 out/
 target/
 *.class
+
+# 对标分析源码（体积大，不入库）
+references/neo-api/
+references/sub2api/

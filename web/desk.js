@@ -1,4 +1,4 @@
-const sections={console:['项目总览','Overview'],keys:['API 密钥','Access keys'],logs:['请求日志','Requests'],usage:['用量与预算','Usage & budget'],ops:['线路与对账','Operations']};
+const sections={console:['项目总览','Overview'],keys:['API 密钥','Access keys'],logs:['请求日志','Requests'],usage:['余额与充值','Balance'],ops:['线路与对账','Operations'],users:['用户管理','Users'],settings:['系统设置','Settings']};
 const traceLabels={reserved:'预算预留',attempt:'尝试上游',first_byte:'收到首字节',settled:'用量结算',fallback:'切换备用线路',rejected:'上游拒绝',failed:'请求失败',interrupted:'请求中断',pending:'等待核对',reconciled:'人工核对结算',incomplete_response:'上游响应不完整',void:'不计费用'};
 const labels={success:'成功',failed:'失败',interrupted:'已中断',running:'进行中',settled:'已结算',pending:'待核对',reserved:'已预留',void:'未计费'};
 const fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
@@ -6,7 +6,7 @@ const money=n=>n==null?'—':'$'+
 Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:9});
 const when=v=>{if(!v)return '—';
  const d=new Date(typeof v==='number'&&v<1e12?v*1000:v);return Number.isNaN(+d)?'—':d.toLocaleString('zh-CN',{hour12:false})};
-const icon=(name)=>{const paths={console:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',keys:'M15 3a6 6 0 0 0-5.5 8.4L3 18v3h3v-3h3v-3l2.6-2.6A6 6 0 1 0 15 3Z',logs:'M5 3h14v18H5zM9 8h6M9 12h6M9 16h4',usage:'M4 20h16M7 16V9M12 16V4M17 16v-5',ops:'M4 6h16M4 18h16M8 3v6M16 15v6'};return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+
+const icon=(name)=>{const paths={console:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',keys:'M15 3a6 6 0 0 0-5.5 8.4L3 18v3h3v-3h3v-3l2.6-2.6A6 6 0 1 0 15 3Z',logs:'M5 3h14v18H5zM9 8h6M9 12h6M9 16h4',usage:'M4 20h16M7 16V9M12 16V4M17 16v-5',ops:'M4 6h16M4 18h16M8 3v6M16 15v6',users:'M16 14a4 4 0 0 0-8 0M12 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 20v-1a5 5 0 0 1 4-4.9M20 20v-1a5 5 0 0 0-3-4.5',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM3 12h2M19 12h2M12 3v2M12 19v2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4'};return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+
 paths[name]+
 '"/></svg>'};
 const link=(page,text,primary=false)=>'<a class="dk-btn '+
@@ -61,8 +61,15 @@ name+
 value+
 '</dd></div>';
 export async function renderDesk(page,ctx){
- const {root,api,escape,modal,notify}=ctx,e=v=>escape(String(v??'—')),data=await api('/api/workspace');
+ const {root,api,escape,modal,notify}=ctx,e=v=>escape(String(v??'—'));
+ const data=await api('/api/workspace');
+ const needsAdmin=page==='users'||page==='settings';
+ const adminView=needsAdmin?await api(page==='users'?'/api/admin/overview':'/api/admin/settings'):null;
+ const orders=page==='usage'?await api('/api/recharges'):null;
+ const me=data.me,isAdmin=me.role==='admin';
+ if(!isAdmin&&sections[page]&&!['console','keys','logs','usage'].includes(page))page='console';
  const {keys,budget:b,requests,lanes,usage}=data,active=keys.filter(k=>!k.revoked),pending=data.pending??requests.filter(r=>r.settlement==='pending');
+ const roleSections=isAdmin?sections:Object.fromEntries(Object.entries(sections).filter(([k])=>k!=='ops'&&k!=='users'&&k!=='settings'));
  const total=usage.reduce((s,u)=>s+Number(u.requests),0),tokens=usage.reduce((s,u)=>s+Number(u.inputTokens||0)+Number(u.outputTokens||0),0);
  const badge=v=>'<span class="dk-tag '+
 (['pending','interrupted','failed'].includes(v)?'dk-warn':v==='success'||v==='settled'?'dk-good':'')+
@@ -82,7 +89,7 @@ e(r.lane)+
 '</small>',badge(r.status),fmt(r.latencyMs)+
 ' ms',charge(r)]));
  const budgetSummary='<div class="dk-stats">'+
-stat('预算上限',money(b.limit),'项目硬上限')+stat('已结算',money(b.spent),'已确认用量')+stat('已预留',money(b.reserved),'进行中与待核对')+stat('可用额度',money(b.remaining),'后续请求可用')+
+stat('充值总额',money(b.limit),'累计充值与调账')+stat('已结算',money(b.spent),'已确认用量')+stat('已预留',money(b.reserved),'进行中与待核对')+stat('可用余额',money(b.remaining),'后续请求可用')+
 '</div>';
  const next=active.length?link('docs','查看接入示例 ↗',true):link('keys','创建 API 密钥',true);
  function allocation(){const pct=n=>b.limit>0?Math.min(100,Math.max(0,Number(n)/Number(b.limit)*100)):0;return '<div class="dk-allocation" role="img" aria-label="预算分配：已结算 '+
@@ -260,15 +267,27 @@ labels[s]+
 '</select></label><button class="dk-action" type="reset">清空筛选</button></form><div class="dk-request-layout"><section class="dk-section" data-results data-build></section><aside class="dk-inspector" data-inspector data-build>'+
 empty('选择一条请求','查看实际线路、路由轨迹、价格快照与结算明细。')+
 '</aside></div>';}
- function billing(){return budgetSummary+tokenChart()+
-'<div class="dk-billing-layout">'+
-section('按模型归集',usage.length?table(['模型','请求数','输入 tokens','输出 tokens','已结算'],usage.map(u=>[e(u.model),fmt(u.requests),fmt(u.inputTokens),fmt(u.outputTokens),money(u.cost)])):empty('暂无用量','真实请求计量将按模型累计。'),csv)+section('项目硬预算','<form data-form="budget"><p>新请求需有足够的可用额度。预算不能低于已结算与预留之和。</p><label for="dk-limit">预算上限（USD）</label><input name="limit" id="dk-limit" type="number" min="0" max="1000000000" step="0.000001" value="'+
-e(b.limit)+
-'" required>'+
-allocation()+
-'<button class="dk-btn dk-primary">更新预算</button></form>')+
-'</div>';}
- function ops(){return '<div class="dk-ops-summary"><div><span class="dk-live-dot"></span><b>'+
+ function billing(){const orderRows=orders.orders.map(o=>[e(o.id),money(o.amount),e(o.channel||'—'),o.status==='paid'?'<span class="dk-tag dk-good">已到账</span>':'<span class="dk-tag dk-warn">待支付</span>',when(o.createdAt)]);
+  return budgetSummary+tokenChart()+
+ '<div class="dk-billing-layout">'+
+ section('按模型归集',usage.length?table(['模型','请求数','输入 tokens','输出 tokens','已结算'],usage.map(u=>[e(u.model),fmt(u.requests),fmt(u.inputTokens),fmt(u.outputTokens),money(u.cost)])):empty('暂无用量','真实请求计量将按模型累计。'),csv)+section('在线充值','<form data-form="recharge"><p>通过标准彩虹易支付通道充值，支付完成后余额自动到账；金额为 USD，单笔上限 $10000。</p><label for="dk-amount">充值金额（USD）</label><input name="amount" id="dk-amount" type="number" min="0.01" max="10000" step="0.01" value="10.00" required><label for="dk-channel">支付渠道</label><select name="channel" id="dk-channel"><option value="alipay">支付宝</option><option value="wxpay">微信支付</option><option value="qqpay">QQ 钱包</option></select><button class="dk-btn dk-primary">前往支付 ↗</button></form>')+
+ section('充值订单',orderRows.length?table(['订单','金额','渠道','状态','创建时间'],orderRows):empty('还没有充值订单','发起充值后，此处将记录每笔订单与到账状态。'))+
+ '</div>';}
+ function usersPage(){const users=adminView.users;
+  const rows=users.map(u=>['<b>'+e(u.email)+'</b><small>'+e(u.role==='admin'?'管理员':'普通用户')+'</small>',money(u.balance),money(u.spent),fmt(u.keys),
+   u.status==='active'?'<span class="dk-tag dk-good">正常</span>':'<span class="dk-tag dk-warn">已封禁</span>',
+   '<button class="dk-action" data-user-balance="'+e(u.id)+'">调余额</button> '+(u.status==='active'?'<button class="dk-action" data-user-ban="'+e(u.id)+'">封禁</button>':'<button class="dk-action" data-user-unban="'+e(u.id)+'">解封</button>')+' <button class="dk-action" data-user-role="'+e(u.id)+'">'+(u.role==='admin'?'降为用户':'升为管理员')+'</button>']);
+  return '<div class="dk-ops-summary"><div><b>'+fmt(users.length)+' 个账号</b><p>余额为可用余额（充值与调账减去已结算与预留）。调整会记入审计。</p></div></div>'+
+  section('账号列表',table(['邮箱 / 角色','可用余额','累计消费','有效密钥','状态','操作'],rows))+
+  section('最近充值订单',adminView.recharges.length?table(['订单','用户','金额','状态','渠道','创建时间'],adminView.recharges.map(r=>[e(r.outTradeNo),e(r.amount),r.status==='paid'?'<span class="dk-tag dk-good">已到账</span>':'<span class="dk-tag dk-warn">待支付</span>',e(r.channel||'—'),when(r.createdAt)])):empty('暂无充值订单'));
+ }
+ function settingsPage(){const s=adminView;
+  return '<div class="dk-settings-grid">'+
+  section('注册与邮箱验证','<form data-form="settings-site"><label class="dk-check"><input type="checkbox" name="registrationEnabled" '+(s.registrationEnabled?'checked':'')+'>开放新用户注册（官方默认开启）</label><label class="dk-check"><input type="checkbox" name="emailVerification" '+(s.emailVerification?'checked':'')+'>注册需邮箱验证码（默认开启）</label><button class="dk-btn dk-primary">保存站点设置</button></form>')+
+  section('SMTP 邮件','<form data-form="settings-smtp"><p>'+(s.smtp_configured?'邮件服务已配置。':'尚未配置；开启邮箱验证前必须先配置 SMTP。')+'</p><div class="dk-grid2"><label>SMTP 主机<input name="smtp_host" value="'+e(s.smtp_host)+'" placeholder="smtp.example.com"></label><label>端口<input name="smtp_port" type="number" min="0" max="65535" value="'+e(s.smtp_port||'')+'" placeholder="465"></label><label>账号<input name="smtp_user" value="'+e(s.smtp_user)+'"></label><label>密码（留空保持不变）<input name="smtp_pass" type="password" placeholder="'+(s.smtp_configured?'已保存':'未设置')+'"></label><label>发件人地址<input name="smtp_from" value="'+e(s.smtp_from)+'" placeholder="noreply@example.com"></label></div><button class="dk-btn dk-primary">保存 SMTP</button></form><form data-form="test-email"><label>发送测试邮件到<input name="to" type="email" placeholder="you@example.com"></label><button class="dk-btn">发送测试邮件</button></form>')+
+  section('彩虹易支付（V1 submit.php / V2 mapi.php）','<form data-form="settings-epay"><p>'+(s.epay_configured?'支付通道已配置。':'尚未配置；配置后用户即可在线充值。')+'</p><div class="dk-grid2"><label>网关地址<input name="epay_url" value="'+e(s.epay_url)+'" placeholder="https://pay.example.com"></label><label>商户 PID<input name="epay_pid" value="'+e(s.epay_pid)+'"></label><label>商户密钥（留空保持不变）<input name="epay_key" type="password" placeholder="'+(s.epay_configured?'已保存':'未设置')+'"></label><label>协议版本<select name="epay_version"><option value="v1" '+(s.epay_version==='v1'?'selected':'')+'>V1 · submit.php 跳转</option><option value="v2" '+(s.epay_version==='v2'?'selected':'')+'>V2 · mapi.php 接口</option></select></label><label>站点公网地址<input name="site_url" value="'+e(s.site_url)+'" placeholder="https://ltzy.example.com"></label></div><p class="dk-muted">站点地址用于拼接支付回调 notify_url 与支付完成跳转 return_url，必须为支付网关可达的地址。</p><button class="dk-btn dk-primary">保存支付配置</button></form>')+
+  '</div>';}
+  function ops(){return '<div class="dk-ops-summary"><div><span class="dk-live-dot"></span><b>'+
 lanes.filter(l=>l.enabled).length+
 ' / '+
 lanes.length+
@@ -345,9 +364,9 @@ charge(r)+
  const c=(panel||document).querySelector('[data-copy-id]');
  if(c)c.onclick=()=>copy(r.id);}
  async function copy(text){try{await navigator.clipboard.writeText(text);notify('已复制')}catch{notify('无法访问剪贴板，请手动选择文本复制。')}}
- const view={console:overview,keys:keyPage,logs,usage:billing,ops};
+ const view={console:overview,keys:keyPage,logs,usage:billing,ops,users:usersPage,settings:settingsPage};
  root.innerHTML='<div class="dk"><aside class="dk-side" data-build><a class="dk-project" href="#console"><img class="dk-marker" src="/logo-256.png" width="39" height="39" alt=""><div><b>默认项目</b><small>LTZY / WORKSPACE</small></div></a><span class="dk-nav-label">工作空间</span><nav aria-label="控制台导航">'+
-Object.entries(sections).map(([k,[name]])=>'<a href="#'+
+Object.entries(roleSections).map(([k,[name]])=>'<a href="#'+
 k+
 '" aria-label="'+e(name)+'" '+
 (k===page?'aria-current="page"':'')+
@@ -359,9 +378,9 @@ name+
 '</nav><a class="dk-doc" href="#docs">接入文档 ↗</a><div class="dk-side-foot"><span class="dk-live-dot"></span>来自项目账本 · 手动刷新</div></aside><div class="dk-main" data-page="'+
 page+
 '"><header class="dk-pagehead"><div><div class="dk-breadcrumb">工作空间 <span>/</span> '+
-sections[page][1]+
+roleSections[page][1]+
 '</div><h1 data-build>'+
-sections[page][0]+
+roleSections[page][0]+
 '</h1></div><button class="dk-btn" data-refresh>刷新数据 ↻</button></header><div data-confirm></div>'+
 view[page]()+((page==='console'||page==='ops')?terminal():'')+
 '</div></div>';
@@ -408,7 +427,13 @@ e(l.id)+
 '？这将改变 '+
 e(l.model)+
 ' 后续请求的路由候选。','确认变更',()=>mutate('/api/lanes',{id:l.id,enabled:!l.enabled},'线路状态已更新'));}
+  else if('user-balance'in a){const u=adminView.users.find(x=>x.id===a['user-balance']);if(!u)return;const m=modal('调整 '+e(u.email)+' 的余额','<form data-balance-form><label>变动金额（USD，负数为扣减）</label><input name="delta" type="number" step="0.000001" required><label>依据（记入审计）</label><input name="reason" maxlength="200" placeholder="例如：活动赠送 / 手工对账"><button class="dk-btn dk-primary">确认调整</button></form>');
+  m.querySelector('[data-balance-form]').onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.target);await api('/api/admin/user',{method:'POST',body:{id:u.id,action:'balance',delta:Number(fd.get('delta')),reason:fd.get('reason')||undefined}});m.close();notify('余额已调整');await refresh()};}
+ else if('user-ban'in a){const u=adminView.users.find(x=>x.id===a['user-ban']);if(!u)return;showConfirm('封禁 '+e(u.email)+'？其会话将被注销，无法登录或调用模型。','确认封禁',()=>mutate('/api/admin/user',{id:u.id,action:'ban'},'账号已封禁'));}
+ else if('user-unban'in a){const u=adminView.users.find(x=>x.id===a['user-unban']);if(!u)return;showConfirm('解除 '+e(u.email)+' 的封禁？','确认解封',()=>mutate('/api/admin/user',{id:u.id,action:'unban'},'账号已解封'));}
+ else if('user-role'in a){const u=adminView.users.find(x=>x.id===a['user-role']);if(!u)return;const toAdmin=u.role!=='admin';showConfirm((toAdmin?'将 '+e(u.email)+' 升级为管理员':'将 '+e(u.email)+' 降级为普通用户')+'？','确认变更',()=>mutate('/api/admin/user',{id:u.id,action:'role',role:toAdmin?'admin':'user'},'角色已更新'));}
  else if('yes'in a&&confirmed)perform(confirmed);else if('no'in a)clear();});
+
  desk.addEventListener('submit',ev=>{ev.preventDefault();
  if(busy)return;
  const f=ev.target,v=new FormData(f);
@@ -421,13 +446,21 @@ e(secret)+
  const c=document.querySelector('[data-copy-key]');
  if(c)c.onclick=()=>copy(secret);
  await refresh()});}
- else if(f.dataset.form==='budget'){const limit=Number(v.get('limit'));
- if(limit+1e-12<Number(b.spent)+Number(b.reserved))return notify('预算不能低于已结算与预留之和');showConfirm('将项目硬预算从 '+
-money(b.limit)+
-' 更新为 '+
-money(limit)+
-'？','确认更新',()=>mutate('/api/budget',{limit},'预算已更新'));}
- else if(f.dataset.form==='settle'){const r=pending[Number(f.dataset.index)],inputTokens=Number(v.get('inputTokens')),outputTokens=Number(v.get('outputTokens')),note=v.get('note').trim();
+ else if(f.dataset.form==='recharge'){const amount=Number(v.get('amount'));
+  if(!(amount>=0.01&&amount<=10000))return notify('金额必须在 $0.01 到 $10000 之间');
+  perform(async()=>{const r=await api('/api/recharge',{method:'POST',body:{amount,channel:v.get('channel')}});
+  if(r.payurl){notify('已创建订单，正在打开支付页面…');window.open(r.payurl,'_blank','noopener')}else notify('未获得支付链接，请检查支付配置');
+  await refresh()});}
+ else if(f.dataset.form==='settings-site'){perform(async()=>{await api('/api/admin/settings',{method:'POST',body:{registrationEnabled:f.querySelector('[name=registrationEnabled]').checked,emailVerification:f.querySelector('[name=emailVerification]').checked}});notify('站点设置已保存');await refresh()});}
+ else if(f.dataset.form==='settings-smtp'){const payload={smtp_host:v.get('smtp_host').trim(),smtp_port:Number(v.get('smtp_port')||0),smtp_user:v.get('smtp_user').trim(),smtp_from:v.get('smtp_from').trim()};
+  if(v.get('smtp_pass'))payload.smtp_pass=v.get('smtp_pass');
+  perform(async()=>{await api('/api/admin/settings',{method:'POST',body:payload});notify('SMTP 配置已保存');await refresh()});}
+ else if(f.dataset.form==='settings-epay'){const payload={epay_url:v.get('epay_url').trim(),epay_pid:v.get('epay_pid').trim(),epay_version:v.get('epay_version'),site_url:v.get('site_url').trim()};
+  if(v.get('epay_key'))payload.epay_key=v.get('epay_key');
+  perform(async()=>{await api('/api/admin/settings',{method:'POST',body:payload});notify('支付配置已保存');await refresh()});}
+ else if(f.dataset.form==='test-email'){const to=v.get('to').trim();
+  perform(async()=>{await api('/api/admin/test-email',{method:'POST',body:{to}});notify('测试邮件已发送到 '+to)});}
+  else if(f.dataset.form==='settle'){const r=pending[Number(f.dataset.index)],inputTokens=Number(v.get('inputTokens')),outputTokens=Number(v.get('outputTokens')),note=v.get('note').trim();
  if(!note)return notify('请填写核对依据');showConfirm('按请求单价结算 '+
 e(r.id)+
 '？输入 '+

@@ -84,6 +84,10 @@ class FullstackTests(unittest.TestCase):
         body.update(changes)
         return self.request('/v1/chat/completions', body, token=token)
 
+    def admin_uid(self):
+        with closing(server.connect(self.srv.db_path)) as db:
+            return db.execute("SELECT id FROM users WHERE email='admin@local'").fetchone()[0]
+
     def workspace(self, receipt_count=None):
         # HTTP response bytes can arrive just before the handler's settlement commit.
         for _ in range(50):
@@ -107,7 +111,7 @@ class FullstackTests(unittest.TestCase):
         self.assertEqual(self.chat('invalid-test-key')[0], 401)
         for extra in ({'Origin': 'https://attacker.invalid'}, {'Sec-Fetch-Site': 'cross-site'},
                       {'Host': 'attacker.invalid'}):
-            self.assertEqual(self.request('/api/budget', {'limit': 10}, headers=extra)[0], 403)
+            self.assertEqual(self.request('/api/admin/settings', {'registrationEnabled': True}, headers=extra)[0], 403)
         for path in ('/server.py', '/gateway.py', '/.ltzy/admin-password.txt',
                      '/%2e%2e/server.py', '/%5cserver.py'):
             self.assertEqual(self.request(path)[0], 404)
@@ -173,15 +177,16 @@ class FullstackTests(unittest.TestCase):
     def test_budget_admission_and_no_receipt_for_rejected_calls(self):
         self.login()
         token, _ = self.key()
-        self.assertEqual(self.request('/api/budget', {'limit': 0})[0], 200)
+        uid = self.admin_uid()
+        self.assertEqual(self.request('/api/admin/user', {'id': uid, 'action': 'balance', 'delta': -25})[0], 200)
         self.assertEqual(self.chat(token)[0], 402)
         self.assertEqual(self.workspace(0)['requests'], [])
-        self.assertEqual(self.request('/api/budget', {'limit': .001})[0], 200)
+        self.assertEqual(self.request('/api/admin/user', {'id': uid, 'action': 'balance', 'delta': .001})[0], 200)
         self.assertEqual(self.chat(token)[0], 200)
         view = self.workspace(1)
         self.assertGreater(view['budget']['spent'], 0)
-        self.assertEqual(self.request('/api/budget', {'limit': 0})[0], 409)
-        self.assertEqual(self.request('/api/budget', {'limit': .0000001})[0], 400)
+        self.assertEqual(self.request('/api/admin/user', {'id': uid, 'action': 'balance', 'delta': -.002})[0], 409)
+        self.assertEqual(self.request('/api/admin/user', {'id': uid, 'action': 'balance', 'delta': .0000001})[0], 400)
         self.assertEqual(self.chat(token, max_tokens=True)[0], 400)
         self.assertEqual(self.chat(token, model='unknown/model')[0], 404)
         self.assertEqual(len(self.workspace()['requests']), 1)
@@ -221,7 +226,9 @@ class FullstackTests(unittest.TestCase):
         # Prompt has 27 Unicode-character units; output is capped at 32.
         amount = gateway.micros(gateway.price_of(gateway.LANES[0]),
                                 len('private integration prompt') + 1, 32)
-        self.assertEqual(self.request('/api/budget', {'limit': amount / 1e6})[0], 200)
+        uid = self.admin_uid()
+        self.assertEqual(self.request('/api/admin/user', {'id': uid, 'action': 'balance',
+                                                          'delta': amount / 1e6 - 25})[0], 200)
         entered, release = threading.Event(), threading.Event()
         real_upstream = gateway.upstream
 

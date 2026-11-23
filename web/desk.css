@@ -22,6 +22,18 @@
 .dk-project small{display:block;color:#637999;font-size:11px;letter-spacing:.12em;margin-top:3px}
 .dk-marker{width:39px;height:39px;flex:none;object-fit:contain;
  filter:drop-shadow(0 5px 12px #2758a333);transform:rotate(-5deg)}
+.dk-check{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:14px}
+.dk-check input{width:18px;height:18px;accent-color:#2b63e8}
+.dk-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:700px){.dk-grid2{grid-template-columns:1fr}}
+.dk-settings-grid{display:grid;gap:20px}
+.dk-settings-grid .dk-section form{display:grid;gap:12px;margin-top:10px}
+.dk-settings-grid label{display:grid;gap:6px;font-size:13px;color:#516078}
+.dk-settings-grid input,.dk-settings-grid select{padding:10px 12px;border:1px solid #dce1ea;border-radius:10px;font:inherit}
+.code-row{display:flex;gap:10px;align-items:center}
+.code-row input{flex:1}
+.linklike{background:none;border:0;color:#2b63e8;cursor:pointer;font:inherit;padding:0;text-decoration:underline}
+.linklike:disabled{color:#8a97ab;cursor:default}
 .dk-nav-label{font-size:11px;letter-spacing:.12em;margin:0 14px 13px;color:#657a96}
 .dk-side nav{display:grid;gap:8px}
 .dk-side nav a{display:flex;align-items:center;gap:12px;padding:13px 14px;

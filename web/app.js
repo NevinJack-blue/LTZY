@@ -1,7 +1,7 @@
 import {mountMotion} from './motion.js';
 const $=s=>document.querySelector(s), main=$('#content'), sheet=$('#sheet'), signout=$('#logout');
-const names={home:'统一模型网关',models:'模型目录',docs:'接入文档',status:'服务状态',console:'项目总览',keys:'API 密钥',logs:'请求日志',usage:'用量与预算',ops:'线路与对账'};
-const privatePages=new Set(['console','keys','logs','usage','ops']);
+const names={home:'统一模型网关',models:'模型目录',docs:'接入文档',status:'服务状态',console:'项目总览',keys:'API 密钥',logs:'请求日志',usage:'余额与充值',ops:'线路与对账',users:'用户管理',settings:'系统设置'};
+const privatePages=new Set(['console','keys','logs','usage','ops','users','settings']);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let toastTimer,generation=0,signed=false,modalTrigger,disposeMotion=()=>{};
 function notify(text){const n=$('#notice');n.textContent=text;n.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>n.hidden=true,4200)}
@@ -18,11 +18,51 @@ async function api(path,options={}){
 }
 const go=page=>{if(location.hash==='#'+page)render();else location.hash=page};
 function showLogin(root){
- root.innerHTML='<section class="gate"><div class="gate-intro" data-build><small>YOUR SIGNAL. YOUR SPACE.</small><h1>每一次调用，<br>都在掌握之中。</h1><p>进入你的模型工作空间。密钥、路由、用量，在同一个地方流动。</p><div class="gate-orbits" aria-hidden="true"><i></i><i></i><i></i><span>LTZY</span></div></div><form data-build><span class="gate-badge">PRIVATE WORKSPACE</span><h2>欢迎回来</h2><label for="admin-pass">管理员密码</label><input id="admin-pass" type="password" required autocomplete="current-password" maxlength="512"><p class="hint">首次启动后，在数据目录的 <code>admin-password.txt</code> 中查看密码。</p><button class="primary" type="submit">登录工作台 ↗</button><p role="alert"></p></form></section>';
- const form=root.querySelector('form');
- form.onsubmit=async e=>{e.preventDefault();const b=form.querySelector('button'),field=form.querySelector('input'),alert=form.querySelector('[role=alert]');b.disabled=true;alert.textContent='';
- try{await api('/api/login',{method:'POST',body:{password:field.value}});field.value='';await render()}
- catch(err){alert.textContent=err.status===401?'密码不正确，请重试。':err.message;field.select()}finally{b.disabled=false}};
+ root.innerHTML='<section class="gate"><div class="gate-intro" data-build><small>YOUR SIGNAL. YOUR SPACE.</small><h1>每一次调用，<br>都在掌握之中。</h1><p>进入你的模型工作空间。密钥、路由、用量，在同一个地方流动。</p><div class="gate-orbits" aria-hidden="true"><i></i><i></i><i></i><span>LTZY</span></div></div><form data-build data-mode="login"><span class="gate-badge">PRIVATE WORKSPACE</span><h2>欢迎回来</h2><label for="admin-pass">邮箱</label><input id="admin-pass" name="email" type="email" autocomplete="username" maxlength="200" placeholder="admin@local"><label for="login-pass">密码</label><input id="login-pass" name="password" type="password" required autocomplete="current-password" maxlength="512"><p class="hint" data-config-hint></p><button class="primary" type="submit">登录工作台 ↗</button><p class="gate-switch"><button type="button" class="linklike" data-toggle-register hidden>没有账号？注册新账号</button></p><p role="alert"></p></form></section>';
+ const form=root.querySelector('form'),alert=form.querySelector('[role=alert]');
+ fetch('/api/config').then(r=>r.json()).then(cfg=>{
+  root.querySelector('[data-config-hint]').textContent=cfg.registration?'开放注册中'+(cfg.emailVerification?'，注册需邮箱验证码。':'。'):'注册暂未开放，联系管理员开通账号。';
+  root.querySelector('[data-toggle-register]').hidden=!cfg.registration;
+ }).catch(()=>{});
+ root.querySelector('[data-toggle-register]').onclick=()=>{
+  const reg=form.dataset.mode!=='register';
+  form.dataset.mode=reg?'register':'login';
+  form.querySelector('h2').textContent=reg?'创建新账号':'欢迎回来';
+  form.querySelector('button[type=submit]').textContent=reg?'注册并进入 ↗':'登录工作台 ↗';
+  root.querySelector('[data-toggle-register]').textContent=reg?'已有账号？返回登录':'没有账号？注册新账号';
+  let codeRow=form.querySelector('[data-code-row]');
+  if(reg){
+   if(!codeRow){codeRow=document.createElement('div');codeRow.setAttribute('data-code-row','');
+    codeRow.innerHTML='<label for="reg-code">邮箱验证码</label><div class="code-row"><input id="reg-code" name="code" type="text" inputmode="numeric" maxlength="6" placeholder="6 位数字"><button type="button" class="linklike" data-send-code>发送验证码</button></div>';
+    form.insertBefore(codeRow,form.querySelector('.gate-switch'));}
+   codeRow.hidden=false;
+  } else if(codeRow) codeRow.hidden=true;
+ };
+ form.addEventListener('click',async ev=>{
+  const b=ev.target.closest('[data-send-code]');
+  if(!b)return;
+  const email=form.querySelector('[name=email]').value.trim();
+  b.disabled=true;
+  try{
+   const r=await fetch('/api/email/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+   const data=await r.json();
+   b.textContent=r.ok?'已发送，查收邮箱':'发送失败';
+   if(!r.ok)alert.textContent=data?.error?.message||'发送失败';
+  }catch{b.textContent='发送失败';alert.textContent='网络错误，请重试。'}
+  setTimeout(()=>{b.disabled=false;b.textContent='发送验证码'},15000);
+ });
+ form.onsubmit=async e=>{e.preventDefault();const b=form.querySelector('button[type=submit]'),field=form.querySelector('[name=password]');b.disabled=true;alert.textContent='';
+  try{
+   const register=form.dataset.mode==='register';
+   const payload=register?{email:form.querySelector('[name=email]').value,password:field.value,code:form.querySelector('[name=code]')?.value}
+    :{email:form.querySelector('[name=email]').value.trim(),password:field.value};
+   const opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)};
+   const r=await fetch(register?'/api/register':'/api/login',opts);
+   const data=await r.json().catch(()=>({}));
+   if(!r.ok)throw Object.assign(new Error(data?.error?.message||(register?'注册失败':'登录失败')),{status:r.status});
+   field.value='';await render()}
+  catch(err){alert.textContent=err.status===401?'邮箱或密码不正确，请重试。':err.message;field.select()}
+  finally{b.disabled=false}};
 }
 function animate(root,replay=false){disposeMotion();disposeMotion=mountMotion(root,{replay})||(()=>{})}
 async function render(){

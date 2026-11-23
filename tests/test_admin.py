@@ -19,17 +19,22 @@ class FixtureGateway:
         INSERT OR IGNORE INTO lane_settings VALUES('a',1),('b',1);''')
 
     @staticmethod
-    def snapshot(db,public=False):
+    def snapshot(db,public=False,user_id=None):
         result = {'models':[{'id':'local/test'}],'status':{}}
         if not public:
+            if user_id:
+                balance = db.execute('SELECT balance_micros FROM users WHERE id=?',(user_id,)).fetchone()[0]
+            else:
+                balance = db.execute('SELECT budget_micros FROM settings').fetchone()[0]
+            held = db.execute('SELECT held FROM balances').fetchone()[0]
             result.update(requests=[{'id':'req'}],usage=[],budget={
-                'limit':db.execute('SELECT budget_micros FROM settings').fetchone()[0]/1e6,
-                'reserved':db.execute('SELECT held FROM balances').fetchone()[0]/1e6,'spent':0},
+                'limit':balance/1e6,'reserved':held/1e6,'spent':0,
+                'remaining':(balance-held)/1e6},
                 lanes=[dict(r,model='local/test') for r in db.execute('SELECT * FROM lane_settings')])
         return result
 
     @staticmethod
-    def csv_rows(db):
+    def csv_rows(db,user_id=None):
         yield {'id':'req','model':'=formula','inputTokens':12}
 
     @staticmethod
@@ -90,8 +95,8 @@ class AdminTests(unittest.TestCase):
     def test_restrict_host_origin_and_content_type(self):
         self.login()
         for headers in ({'Origin':'https://example.org'}, {'Sec-Fetch-Site':'cross-site'}, {'Host':'unrecognized.local'}):
-            self.assertEqual(self.call('/api/budget',{'limit':1},**headers)[0],403)
-        self.assertEqual(self.call('/api/budget',{'limit':1},**{'Content-Type':'text/plain'})[0],415)
+            self.assertEqual(self.call('/api/admin/settings',{'registrationEnabled':True},**headers)[0],403)
+        self.assertEqual(self.call('/api/admin/settings',{'registrationEnabled':True},**{'Content-Type':'text/plain'})[0],415)
         self.assertEqual(self.call('/.ltzy/admin-password.txt')[0],404)
         self.assertEqual(self.call('/../server.py')[0],404)
 
@@ -116,18 +121,20 @@ class AdminTests(unittest.TestCase):
         self.assertNotIn(raw,json.dumps(keys))
         self.assertNotIn('digest',keys[0])
 
-    def test_budget_write_reads_latest_committed_reservation(self):
+    def test_balance_update_reads_committed_state(self):
         self.login()
-        with ThreadPoolExecutor() as pool, closing(server.connect(self.srv.db_path)) as db:
+        with closing(server.connect(self.srv.db_path)) as db:
+            uid, = db.execute("SELECT id FROM users WHERE email='admin@local'").fetchone()
+        # Zeroing the balance must be rejected while an in-flight reservation holds funds.
+        with closing(server.connect(self.srv.db_path)) as db:
             db.execute('BEGIN IMMEDIATE')
-            db.execute('UPDATE balances SET held=500000')
-            future = pool.submit(self.call,'/api/budget',{'limit':.4})
+            db.execute('UPDATE users SET balance_micros=0 WHERE id=?',(uid,))
             db.commit()
-            self.assertEqual(future.result()[0],409)
-        self.assertEqual(self.call('/api/budget',{'limit':.500001})[0],200)
-        self.assertEqual(self.call('/api/workspace')[1]['budget']['limit'],.500001)
-        for value in [True,-1,0.0000001,'NaN']:
-            self.assertEqual(self.call('/api/budget',{'limit':value})[0],400)
+        self.assertEqual(self.call('/api/admin/user',{'id':uid,'action':'balance','delta':-1})[0],409)
+        self.assertEqual(self.call('/api/admin/user',{'id':uid,'action':'balance','delta':0.500001})[0],200)
+        self.assertEqual(self.call('/api/workspace')[1]['me']['balance'],0.500001)
+        for value in [True,0.0000001,'NaN']:
+            self.assertEqual(self.call('/api/admin/user',{'id':uid,'action':'balance','delta':value})[0],400)
 
     def test_concurrent_lane_disable_preserves_last_lane(self):
         self.login()
