@@ -257,6 +257,19 @@ class UsersTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT status FROM recharges WHERE out_trade_no=?',
                                         (q2['out_trade_no'],)).fetchone()[0], 'pending')
 
+    def test_recharge_rejects_more_than_two_decimal_places(self):
+        self.configure_epay('v1')
+        code, body, _ = self.call('/api/recharge', {'amount': 5.123, 'channel': 'alipay'})
+        self.assertEqual(code, 400)
+        self.assertIn('2 位小数', body['error']['message'])
+        code, order, _ = self.call('/api/recharge', {'amount': 5.12, 'channel': 'alipay'})
+        self.assertEqual(code, 200)
+        from urllib.parse import urlparse, parse_qsl
+        query = dict(parse_qsl(urlparse(order['payurl']).query))
+        self.assertEqual(query['money'], '5.12')
+        overview = self.call('/api/admin/overview')[1]
+        self.assertEqual(overview['recharges'][0]['user'], 'admin@local')
+
     def notify(self, params):
         from urllib.parse import urlencode
         code, body, _ = self.call('/pay/notify?' + urlencode(params))

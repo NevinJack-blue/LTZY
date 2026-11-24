@@ -54,20 +54,21 @@ function home(r,ctx) {
   r.innerHTML = `
     <header class="pa-hero">
       <div class="pa-hero-copy" data-build>
-        ${label('LTZY / MODEL GATEWAY LAB')}
-        <h1>接通模型。<br><span>看清每次调用。</span></h1>
-        <p>从模型接入到费用回执，<br>把复杂留给网关，把创作还给你。</p>
-        <div class="pa-actions"><a class="button primary" href="#docs">接入你的应用 <span>↗</span></a>
-          <a class="pa-link" href="#models">探索模型 <span>→</span></a></div>
+        ${label('LTZY / MODEL ACCESS & USAGE LEDGER')}
+        <h1>模型接入与用量管理，<br><span>在一个工作台完成。</span></h1>
+        <p>统一查看可用模型、调用方式和价格，<br>按请求核对线路、用量与费用。</p>
+        <div class="pa-actions"><a class="button primary" href="#models">查看模型目录 <span>↗</span></a>
+          <a class="pa-link" href="#docs">阅读接入文档 <span>→</span></a></div>
+        <ul class="pa-hero-points"><li>免费与收费分开标识</li><li>输入输出分别计价</li><li>请求记录可供核对</li></ul>
         <small class="pa-instance" role="status">正在读取实例配置…</small>
       </div>
       <div class="pa-hero-art">${terminal()}</div>
     </header>
-    <div class="pa-bridge" data-build><span>让每一步，都看得见。</span>
+    <div class="pa-bridge" data-build><span>一次请求，完整记录。</span>
       <div><b>兼容接入</b><i>→</i><b>智能选路</b><i>→</i><b>用量结算</b><i>→</i><b>完整回执</b></div></div>
     <section class="pa-workbench pa-reveal" data-build>
-      <div class="pa-section-head"><div>${label('INSIDE THE SIGNAL')}<h2>一条请求，<br>如何抵达答案。</h2></div>
-        <p>亲手运行一段路由轨迹。<br>这里是交互示例，不产生实际模型调用。</p></div>
+      <div class="pa-section-head"><div>${label('REQUEST PROCESSING')}<h2>请求处理与核对</h2></div>
+        <p>下面展示一次请求的处理步骤。<br>交互演示不会发送实际模型调用。</p></div>
       <div class="pa-workbody">
         <div class="pa-topology">
           <div class="pa-topology-title"><span>请求路由实验台</span><span class="pa-topology-state">READY</span></div>
@@ -93,28 +94,28 @@ function home(r,ctx) {
       <div class="pa-result"><span aria-live="polite"></span><button class="receipt">查看回执结构 ↗</button></div>
     </section>
     <section class="pa-possibilities pa-reveal" data-build>
-      <div class="pa-section-head"><div>${label('LESS FRICTION. MORE CONTROL.')}<h2>不止连接。<br>也是你的控制面。</h2></div>
+      <div class="pa-section-head"><div>${label('WORKSPACE CAPABILITIES')}<h2>接入、计量与权限管理</h2></div>
         <div class="pa-scroll-controls"><button data-scroll="-1" aria-label="向前浏览能力卡片">←</button>
           <button data-scroll="1" aria-label="向后浏览能力卡片">→</button></div></div>
       <div class="pa-card-reel" tabindex="0" aria-label="产品能力，左右滚动浏览">
         <article class="pa-feature pa-feature-blue"><span>ROUTING</span><div class="pa-feature-object pa-routes"><i></i><i></i><i></i></div>
-          <h3>一个入口，<br>不止一条路径。</h3><p>用现有客户端调用已配置模型。首选上游受限时，在响应开始前尝试同模型备用渠道。</p><a href="#models">查看模型与能力 ↗</a></article>
+          <h3>模型路由</h3><p>用现有客户端调用已配置模型。首选上游受限时，在响应开始前尝试同模型备用渠道。</p><a href="#models">查看模型与能力 ↗</a></article>
         <article class="pa-feature pa-feature-silver"><span>ACCOUNTING</span><div class="pa-feature-object pa-receipt-object"><b>tokens</b><i></i><i></i><strong>USD / request</strong></div>
-          <h3>费用不该，<br>是一个猜测。</h3><p>输入、输出分开计量，保留当次计价快照。缺失用量标记待核对，不以零费用掩盖未知。</p><a href="#usage">管理用量与预算 ↗</a></article>
+          <h3>费用计量</h3><p>输入、输出分开计量，保留当次计价快照。缺失用量标记待核对，不以零费用掩盖未知。</p><a href="#usage">管理用量与预算 ↗</a></article>
         <article class="pa-feature pa-feature-teal"><span>ACCESS CONTROL</span><div class="pa-feature-object pa-key-object">⌁<small>SCOPED ACCESS</small></div>
-          <h3>为每个应用，<br>划好边界。</h3><p>独立 API Key、模型权限与撤销管理。管理员会话与调用密钥分离，敏感信息不进入公共页面。</p><a href="#keys">管理 API 密钥 ↗</a></article>
+          <h3>密钥权限</h3><p>独立 API Key、模型权限与撤销管理。管理员会话与调用密钥分离，敏感信息不进入公共页面。</p><a href="#keys">管理 API 密钥 ↗</a></article>
         <article class="pa-feature pa-feature-iris"><span>OBSERVABILITY</span><div class="pa-feature-object pa-trace-object"><i></i><i></i><i></i><i></i></div>
-          <h3>不止一个结果，<br>还有来龙去脉。</h3><p>用请求 ID 关联尝试路径、响应状态与结算结果。流式中断后先核对，再决定是否重试。</p><a href="#logs">打开请求日志 ↗</a></article>
+          <h3>请求记录</h3><p>用请求 ID 关联尝试路径、响应状态与结算结果。流式中断后先核对，再决定是否重试。</p><a href="#logs">打开请求日志 ↗</a></article>
       </div>
     </section>
-    <section class="pa-trust pa-reveal" data-build><div>${label('DESIGNED WITH BOUNDARIES')}<h2>透明，也包括<br>明确说出边界。</h2>
-      <p>不虚构流量，不隐藏测试适配器。<br>你看到的配置与计数，都来自当前实例。</p></div>
+    <section class="pa-trust pa-reveal" data-build><div>${label('DATA & BOUNDARIES')}<h2>数据与处理边界</h2>
+      <p>页面配置与计数来自当前实例。<br>本地测试适配器会明确标识，不冒充真实模型。</p></div>
       <div class="pa-trust-list"><details open><summary>你的数据会去哪里？</summary><p>真实推理请求会发送到你配置的 HTTPS 上游。请结合上游的数据政策决定可发送的内容，不要将敏感凭据放入提示词。</p></details>
         <details><summary>本地测试与真实推理有什么区别？</summary><p>本地适配器提供确定性回复，用于验证鉴权、流式传输与计量流程。它不是语言模型，不代表真实模型能力或响应速度。</p></details>
         <details><summary>失败之后，会自动重放吗？</summary><p>响应开始后不再切换上游；流式传输中断可能已有费用产生。请先用请求 ID 检查日志，避免重复调用。</p></details>
       </div></section>
-    <section class="pa-endcap pa-reveal" data-build><span>YOUR NEXT IDEA, CONNECTED.</span><h2>让下一次灵感，<br>从一次调用开始。</h2>
-      <a class="button primary" href="#docs">阅读接入文档 ↗</a><a class="pa-link" href="#console">进入项目工作台 →</a></section>
+    <section class="pa-endcap pa-reveal" data-build><span>GET STARTED</span><h2>从模型目录开始接入。<br>先确认价格，再创建密钥。</h2>
+      <a class="button primary" href="#models">查看模型 ↗</a><a class="pa-link" href="#docs">阅读接入文档 →</a></section>
   `;
   r.querySelectorAll('[data-node]').forEach(b=>b.onclick=()=>{
     r.querySelectorAll('[data-node]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
@@ -167,49 +168,113 @@ function home(r,ctx) {
   }));
 }
 
+const priceZero=v=>v!=null&&Number.isFinite(Number(v))&&Number(v)===0;
+const isFree=m=>priceZero(m.inputPrice)&&priceZero(m.outputPrice);
+const glyphOf=p=>String(p||'??').replace(/[^0-9A-Za-z]/g,'').slice(0,2).toUpperCase()||'??';
 function catalog(r,data,ctx) {
-  const e=ctx.escape, list=data.models;
-  r.innerHTML = `
-    ${heading('MODEL REGISTRY','模型目录','当前实例的模型能力、接入方式与价格，一处看清。')}
-    <div class="pa-catalog-layout">
-      <aside class="pa-catalog-filter" data-build><span class="pa-panel-label">REFINE YOUR SELECTION</span><h2>筛选模型</h2>
-        <label>搜索<input type="search" placeholder="模型 ID 或提供方"></label>
-        <label>接入类型<select><option value="">全部类型</option><option value="https">HTTPS 上游</option><option value="local-test">本地测试</option></select></label>
-        <label>能力<select><option value="">全部能力</option><option value="chat">对话</option><option value="stream">流式</option></select></label>
-        <div class="pa-filter-note"><i>↳</i><p>目录来自实例配置。启用不代表上游已通过实时健康探测。</p></div></aside>
-      <section class="pa-catalog-results" data-build><div class="pa-tablemeta"><span aria-live="polite"></span><span>USD / 百万 tokens</span></div><div class="pa-models"></div></section>
-    </div>
-    <section class="pa-selection-guide pa-reveal"><h2>选模型之前，先确认这三件事。</h2><div>
-      <article><span>能力匹配</span><h3>普通对话，还是流式输出？</h3><p>只有标记支持流式的模型，才应设置 stream。上下文大小以当前配置为准。</p></article>
-      <article><span>价格口径</span><h3>输入与输出，分别计价。</h3><p>这里展示每百万 tokens 的美元价格。实际调用保留独立价格快照，不以目录价格回算历史。</p></article>
-      <article><span>接入边界</span><h3>测试适配器，不是推理服务。</h3><p>本地测试适合验证调用链路。需要真实生成能力时，请配置 HTTPS 上游。</p></article>
-    </div></section>
-  `;
-  const search=r.querySelector('input'), [kind,cap]=r.querySelectorAll('select');
-  const rows=r.querySelector('.pa-models');
+  const e=ctx.escape,list=data.models||[];
+  const capsOf=m=>(m.capabilities||[]).map(c=>({chat:'对话',stream:'流式'}[c]||c));
+  const groups=[
+    {id:'free',number:'01',title:'免费分组',desc:'输入与输出单价均为 0 的模型。'},
+    {id:'paid',number:'02',title:'收费分组',desc:'存在非零单价的模型，按实际用量计费。'}
+  ];
+  const groupOf=m=>isFree(m)?'free':'paid';
+  const providers=[...new Set(list.map(m=>m.provider))].sort();
+  r.innerHTML=`
+    <section class="pa-plaza-intro" data-build><div>
+      <span class="pa-eyebrow">免费与收费，分开标清楚</span>
+      <h1>模型广场</h1>
+      <p>当前实例配置的全部模型，按输入与输出单价分成免费与收费两组。价格均为每百万 tokens 的美元单价，来自实时接口。</p></div>
+      <div class="pa-public-note"><strong>先看分组，再选模型</strong><span>免费模型单价为 0；收费模型按实际用量计费。</span></div></section>
+    <div class="pa-plaza-layout">
+      <aside class="pa-catalog-filter" data-build>
+        <label>搜索<input type="search" placeholder="搜索模型名称"></label>
+        <span class="pa-panel-label">按费用分组</span>
+        <div class="pa-group-switch" role="group" aria-label="按费用分组"><span class="pa-switch-thumb" aria-hidden="true"></span>
+          ${['all','free','paid'].map(id=>'<button type="button" data-billing="'+id+'" aria-pressed="false">'
+            +(id==='all'?'全部':groups.find(g=>g.id===id).title.replace('分组',''))
+            +'<span>'+(id==='all'?list.length:list.filter(m=>groupOf(m)===id).length)+'</span></button>').join('')}
+        </div>
+        <label>供应商<select><option value="">全部供应商</option>
+          ${providers.map(p=>'<option value="'+e(p)+'">'+e(p)+'</option>').join('')}</select></label>
+        <div class="pa-filter-note"><i>↳</i><p>分组依据实际配置的单价：输入与输出均为 0 归入免费，否则收费。启用不代表上游已通过实时健康探测。</p></div>
+      </aside>
+      <section class="pa-catalog-results" data-build><div class="pa-tablemeta"><span aria-live="polite"></span><span>USD / 百万 tokens</span></div>
+        <div class="pa-models"></div></section>
+    </div>`;
+  const search=r.querySelector('input'),provider=r.querySelector('select'),rows=r.querySelector('.pa-models');
+  let billing='all',switchVersion=0,found=[];
+  function updateSwitch() {
+    const order=['all','free','paid'];
+    r.querySelector('.pa-group-switch').style.setProperty('--billing-index',order.indexOf(billing));
+    r.querySelectorAll('[data-billing]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.billing===billing)));
+  }
+  function observed(m) {const x=m.metrics||{};return `<div class="pa-model-observed"><div><span>已完成成功率</span><strong>${x.successRate==null?'暂无数据':e(String(x.successRate))+'%'}</strong></div><div><span>累计请求</span><strong>${e(String(x.requests||0))} 次</strong></div><div><span>平均响应时间</span><strong>${x.averageLatencyMs==null?'暂无数据':e(String(x.averageLatencyMs))+' ms'}</strong></div></div>`}
+  function card(m,i) {const g=groupOf(m),free=g==='free';return `
+    <article class="pa-model-card"><div class="pa-modeltop"><span class="pa-provider">${e(m.provider)}</span>
+      <span class="pa-badge ${free?'pa-badge-free':'pa-badge-paid'}">${free?'免费':'收费'}</span></div>
+      <div class="pa-model-identity"><div class="pa-model-glyph">${e(glyphOf(m.provider))}<span>${m.enabled?'':'·'}</span></div>
+        <div><h2>${e(m.id)}</h2><p>${e(mode(m))} · ${m.enabled?'已启用':'已停用'}</p></div></div>
+      <p class="pa-model-summary">${m.kind==='local-test'?'用于验证鉴权、流式响应与计量流程的本地测试线路。':'当前实例配置的 HTTPS 上游线路，支持对话与流式调用。'}</p>
+      <div class="pa-model-tags"><span class="pa-tag blue">${free?'免费':'收费'}</span>${capsOf(m).map(c=>'<span class="pa-tag">'+e(c)+'</span>').join('')}
+        ${m.kind==='local-test'?'<span class="pa-tag">本地测试</span>':''}</div>
+      <dl class="pa-modelspec"><div><dt>输入 / 1M tokens</dt><dd>${usd(m.inputPrice)}</dd></div>
+        <div><dt>输出 / 1M tokens</dt><dd>${usd(m.outputPrice)}</dd></div>
+        <div><dt>上下文窗口</dt><dd>${m.context?e(String(m.context)):'未提供'}</dd></div></dl>
+      ${observed(m)}
+      <div class="pa-model-actions"><button class="pa-link" data-detail="${i}">查看详情 ↗</button><button class="pa-copy" data-copy="${i}">复制模型 ID</button></div></article>`;}
   function draw() {
-    const found=list.filter(m=>(m.id+' '+m.provider).toLowerCase().includes(search.value.trim().toLowerCase())
-      &&(!kind.value||kind.value===m.kind)&&(!cap.value||m.capabilities?.includes(cap.value)));
+    const q=search.value.trim().toLowerCase(),pv=provider.value;
+    found=list.filter(m=>(m.id+' '+m.provider).toLowerCase().includes(q)&&(!pv||pv===m.provider)
+      &&(billing==='all'||groupOf(m)===billing));
     r.querySelector('[aria-live]').textContent=found.length+' 个匹配模型';
-    rows.innerHTML=found.length?found.map((m,i)=>`
-      <article class="pa-model-card"><div class="pa-modeltop"><span class="pa-provider">${e(m.provider)}</span><span class="pa-badge">${m.enabled?'已启用':'已停用'}</span></div>
-        <div class="pa-model-identity"><div class="pa-model-glyph">M<span>↗</span></div><div><h2>${e(m.id)}</h2><p>${e(mode(m))} · ${e(capabilities(m))}</p></div></div>
-        <dl class="pa-modelspec"><div><dt>输入 / 1M tokens</dt><dd>${usd(m.inputPrice)}</dd></div><div><dt>输出 / 1M tokens</dt><dd>${usd(m.outputPrice)}</dd></div><div><dt>上下文</dt><dd>${m.context?e(String(m.context)):'未提供'}</dd></div></dl>
-        <div class="pa-model-actions"><button class="pa-link" data-detail="${i}">查看详情 ↗</button><button class="pa-copy" data-copy="${i}">复制模型 ID</button></div></article>
-    `).join(''):'<div class="pa-empty"><h2>没有匹配的模型</h2><p>换一个关键词，或调整接入类型。</p><button class="button" data-reset>清除筛选</button></div>';
+    rows.innerHTML=found.length?groups.filter(g=>billing==='all'||g.id===billing).map(g=>{
+      const sub=found.map((m,i)=>({m,i})).filter(x=>groupOf(x.m)===g.id);
+      if(!sub.length)return '';
+      return '<section class="pa-model-group"><header class="pa-group-head"><span>'+g.number+'</span>'
+        +'<h2>'+g.title+'</h2><p>'+e(g.desc)+'</p><span class="pa-group-count">'+sub.length+' 个模型</span></header>'
+        +'<div class="pa-model-grid">'+sub.map(x=>card(x.m,x.i)).join('')+'</div></section>';
+    }).join(''):'<div class="pa-empty"><h2>没有匹配的模型</h2><p>试试更短的关键词，或切回「全部」分组。</p><button class="button" data-reset>清除筛选</button></div>';
     rows.onclick=ev=>{
       const b=ev.target.closest('button'); if(!b)return;
-      if('reset'in b.dataset){search.value=kind.value=cap.value='';draw();return;}
+      if('reset'in b.dataset){search.value=provider.value='';billing='all';updateSwitch();draw();return;}
       if('copy'in b.dataset){copy(found[b.dataset.copy].id,ctx);return;}
-      const m=found[b.dataset.detail];
-      ctx.modal('模型详情',`<h2 class="pa-modelid">${e(m.id)}</h2><dl class="pa-dl">
-        <dt>接入类型</dt><dd>${mode(m)}</dd><dt>提供方</dt><dd>${e(m.provider)}</dd>
-        <dt>能力</dt><dd>${e(capabilities(m))}</dd><dt>上下文窗口</dt><dd>${m.context?e(String(m.context))+' tokens':'未提供'}</dd>
-        <dt>输入 / 百万 tokens</dt><dd>${usd(m.inputPrice)}</dd><dt>输出 / 百万 tokens</dt><dd>${usd(m.outputPrice)}</dd></dl>
-        <p>${m.kind==='local-test'?'确定性测试适配器，不提供真实模型推理。':'价格来自实例配置，每次请求保留独立计价快照。'}</p><a class="button primary" href="#docs">使用这个接口 →</a>`);
+      const m=found[b.dataset.detail],free=groupOf(m)==='free';
+      const sheet=ctx.modal('模型详情','<h2 class="pa-modelid">'+e(m.id)+'</h2>'
+        +'<p class="pa-detail-line">'+e(m.provider)+' · '+e(mode(m))+' · '+e(groups.find(g=>g.id===groupOf(m)).title)
+        +' · '+(m.enabled?'已启用':'已停用')+'</p><dl class="pa-dl">'
+        +'<dt>能力</dt><dd>'+e(capsOf(m).join(' / ')||'未提供')+'</dd>'
+        +'<dt>上下文窗口</dt><dd>'+(m.context?e(String(m.context))+' tokens':'未提供')+'</dd>'
+        +'<dt>输入 / 百万 tokens</dt><dd>'+usd(m.inputPrice)+'</dd>'
+        +'<dt>输出 / 百万 tokens</dt><dd>'+usd(m.outputPrice)+'</dd></dl>'
+        +'<p>'+(m.kind==='local-test'?'确定性测试适配器，不提供真实模型推理。':free?'输入与输出单价均为 0，按配置不产生平台调用费。':'存在非零单价，按实际用量计费；每次请求保留独立价格快照。')+'</p>'
+        +observed(m)
+        +'<div class="pa-modal-actions"><button class="button" data-copy-id>复制模型 ID</button><a class="button primary" href="#docs">接入文档 →</a></div>');
+      sheet.querySelector('[data-copy-id]').onclick=()=>copy(m.id,ctx);
     };
   }
-  search.oninput=kind.onchange=cap.onchange=draw; draw();
+  async function setBilling(next) {
+    if(next===billing)return;
+    const prev=billing,order=['all','free','paid'];
+    const dir=order.indexOf(next)>order.indexOf(prev)?1:-1;
+    billing=next; const version=++switchVersion;
+    updateSwitch();
+    const quiet=matchMedia('(prefers-reduced-motion: reduce)').matches
+      ||document.documentElement.classList.contains('motion-quiet');
+    if(quiet||!rows.animate){draw();return;}
+    rows.getAnimations().forEach(a=>a.cancel());
+    const leave=rows.animate([{opacity:1,transform:'translateX(0)'},
+      {opacity:0,transform:'translateX('+(-14*dir)+'px)'}],{duration:120,easing:'ease-in',fill:'forwards'});
+    try{await leave.finished}catch{}
+    if(version!==switchVersion||!r.isConnected)return;
+    draw();
+    leave.cancel();
+    rows.animate([{opacity:0,transform:'translateX('+(14*dir)+'px)'},
+      {opacity:1,transform:'translateX(0)'}],{duration:190,easing:'cubic-bezier(.2,.75,.25,1)'});
+  }
+  r.querySelectorAll('[data-billing]').forEach(b=>b.onclick=()=>setBilling(b.dataset.billing));
+  search.oninput=provider.onchange=draw;
+  updateSwitch();draw();
 }
 function docs(r,data,ctx) {
   const models=data.models.filter(m=>m.enabled), e=ctx.escape;
@@ -340,7 +405,9 @@ export async function renderPublic(page,ctx) {
       const enabled=models.filter(x=>x.enabled);
       bindTerminal(r,ctx,enabled[0]?.id);
       r.querySelector('.pa-instance').textContent=enabled.length&&enabled.every(x=>x.kind==='local-test')
-        ?'当前实例仅启用本地测试 · 不调用外部服务':'当前实例 · '+enabled.length+' 个已启用模型';
+        ?'当前实例仅启用本地测试 · 不调用外部服务'
+        :'当前实例 · '+enabled.length+' 个已启用模型（免费 '+enabled.filter(isFree).length
+          +' / 收费 '+(enabled.length-enabled.filter(isFree).length)+'）';
     } catch {if(r.isConnected)r.querySelector('.pa-instance').textContent='暂时无法读取实例配置。';}
     return;
   }

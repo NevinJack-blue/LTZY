@@ -295,8 +295,11 @@ def admin_update_user(db, obj, me):
         except (ValueError, InvalidOperation, TypeError):
             raise Problem(400, '调整金额需为最多 6 位小数的美元金额')
         amount = int(delta * 1_000_000)
-        if target['balance_micros'] + amount < 0:
-            raise Problem(409, '调整后余额不能低于零')
+        spend, held = db.execute(
+            'SELECT coalesce(sum(cost),0),coalesce(sum(reserved),0) FROM receipts WHERE user_id=?',
+            (uid,)).fetchone()
+        if target['balance_micros'] + amount - spend - held < 0:
+            raise Problem(409, '调整后可用余额不能低于零')
         db.execute('UPDATE users SET balance_micros=balance_micros+? WHERE id=?', (amount, uid))
         db.execute('INSERT INTO balance_audit VALUES(?,?,?,?,?,?)',
                    ('bal_' + secrets.token_hex(10), uid, amount,
@@ -564,7 +567,11 @@ class Handler(BaseHTTPRequestHandler):
                 u['balance'] = (u['balance']*1e6 - spend - held)/1e6
             return {'users':users,
                     'recharges':[dict(r) for r in db.execute(
-                        'SELECT id,out_trade_no AS outTradeNo,amount_micros/1e6 AS amount,status,channel,trade_no AS tradeNo,created_at AS createdAt,paid_at AS paidAt FROM recharges ORDER BY rowid DESC LIMIT 100')]},headers
+                        '''SELECT r.id,r.out_trade_no AS outTradeNo,r.amount_micros/1e6 AS amount,
+                                  r.status,r.channel,r.trade_no AS tradeNo,r.created_at AS createdAt,
+                                  r.paid_at AS paidAt,u.email AS user
+                           FROM recharges r LEFT JOIN users u ON u.id=r.user_id
+                           ORDER BY r.rowid DESC LIMIT 100''')]},headers
         elif post and path == '/api/admin/user':
             require_admin(me)
             return admin_update_user(db,obj,me),headers
@@ -660,9 +667,15 @@ class Handler(BaseHTTPRequestHandler):
         cfg = settings_row(db)
         if not cfg['epay_url'] or not cfg['epay_key'] or not cfg['epay_pid']:
             raise Problem(503,'支付通道尚未配置')
+        try:
+            requested = Decimal(str(obj.get('amount')))
+            if not requested.is_finite() or requested.as_tuple().exponent < -2:
+                raise ValueError()
+        except (ValueError, InvalidOperation, TypeError):
+            raise Problem(400,'充值金额需为最多 2 位小数的美元金额')
         amount = micros(obj.get('amount'))
         if not 10_000 <= amount <= 10_000_000_000:
-            raise Problem(400,'充值金额需在 $0.01 and $10000')
+            raise Problem(400,'充值金额需在 $0.01 和 $10000 之间')
         pay_type = obj.get('channel','alipay')
         if pay_type not in ('alipay','wxpay','qqpay'):
             raise Problem(400,'不支持的支付渠道')

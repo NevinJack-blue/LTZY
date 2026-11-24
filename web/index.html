@@ -2,29 +2,26 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#f5f8ff">
+<meta name="theme-color" content="#f6f8fc">
 <script src="/preferences.js"></script>
-<meta name="description" content="LTZY：将模型路由、用量和预算，连接为一个透明的工作空间。">
-<title>LTZY · Signal Studio</title>
+<meta name="description" content="LTZY：免费与收费模型分开管理，清楚查看每次调用的线路、用量和费用。">
+<title>LTZY · 模型中转站</title>
 <link rel="icon" href="/favicon.ico" type="image/x-icon">
 <link rel="apple-touch-icon" href="/logo-256.png">
 <link rel="stylesheet" href="/base.css"><link rel="stylesheet" href="/public.css">
-<link rel="stylesheet" href="/desk.css"><link rel="stylesheet" href="/motion.css"><link rel="stylesheet" href="/shell-theme.css">
+<link rel="stylesheet" href="/desk.css"><link rel="stylesheet" href="/shell-theme.css">
 <script type="module" src="/app.js"></script>
 </head>
 <body>
 <a class="skip" href="#content">跳至正文</a>
-<div class="ambient-field" aria-hidden="true"><i></i><i></i><i></i></div>
 <header class="mast"><div class="mast-row">
-<a class="wordmark" href="#home" aria-label="LTZY 首页">
-<img class="brand-icon" src="/logo-256.png" width="36" height="36" alt="LTZY 标志">
-<b>LTZY<span>®</span></b></a>
-<span class="brand-descriptor">SIGNAL STUDIO</span>
-<nav aria-label="主导航"><a href="#models">模型探索</a><a href="#docs">开发者</a><a href="#status">观测站</a></nav>
-<div class="account"><button id="theme-toggle" type="button" aria-label="切换至夜晚主题" title="切换至夜晚主题"><span aria-hidden="true">☾</span><span class="theme-label">夜晚</span></button><a href="#console" class="console-link">进入工作台 <span aria-hidden="true">↗</span></a><button id="logout" hidden>退出</button></div>
+  <a class="wordmark" href="#home" aria-label="LTZY 首页"><span class="brand-icon"><img src="/logo-256.png" width="32" height="32" alt=""></span><span class="brand-name"><b>LTZY</b><small>FREE MODEL RELAY</small></span></a>
+  <nav class="site-nav" data-active="home" aria-label="主导航"><a href="#home">首页</a><a href="#models">模型广场</a><a href="#docs">使用说明</a></nav>
+  <div class="account"><button id="theme-toggle" type="button" aria-label="切换深色主题" title="切换深色主题"><span aria-hidden="true">☾</span></button><a href="#console" class="console-link">进入控制台 <span aria-hidden="true">→</span></a><button id="logout" class="logout-button" hidden>退出</button></div>
 </div></header>
-<main id="content" tabindex="-1"><div class="shell-loading" role="status"><span class="loading-orb"></span><span>正在连接你的工作空间</span></div></main>
-<footer class="colophon"><div><b>LTZY</b><span>让每一道信号，有迹可循。</span></div><div class="experience-tools"><label class="quality-control">画质<select id="quality-select" aria-label="性能模式"><option value="auto">自动</option><option value="lite">流畅</option><option value="full">完整</option></select></label><button id="replay" type="button"><span aria-hidden="true">↻</span> 重播协作入场</button><label><input id="motion-toggle" type="checkbox" role="switch">减少动态效果</label><a href="#docs">开发者文档 ↗</a></div></footer>
+<main id="content" tabindex="-1"><div class="shell-loading" role="status"><span class="loading-orb"></span><span>正在读取当前实例</span></div></main>
+<footer class="colophon"><div><b>LTZY</b><span>模型调用与用量账本</span></div><nav aria-label="页脚导航"><a href="#models">模型广场</a><a href="#docs">使用说明</a><a href="#status">服务状态</a></nav></footer>
+<nav class="mobile-public-nav" aria-label="移动端导航"><a href="#home">首页</a><a href="#models">模型广场</a><a href="#console">控制台</a></nav>
 <dialog id="sheet" aria-labelledby="sheet-title"><header><h2 id="sheet-title"></h2><button id="dismiss" aria-label="关闭详情" type="button">×</button></header><div data-modal-body></div></dialog>
 <div id="notice" role="status" hidden></div><noscript>此工作台需要启用 JavaScript。</noscript>
 </body></html>

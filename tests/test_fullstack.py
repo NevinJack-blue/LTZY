@@ -160,6 +160,10 @@ class FullstackTests(unittest.TestCase):
         public = self.request('/api/public')[1]
         self.assertEqual(set(public), {'models', 'status'})
         self.assertEqual(public['status']['successful'], 2)
+        metrics = public['models'][0]['metrics']
+        self.assertEqual(metrics['requests'], 2)
+        self.assertEqual(metrics['successRate'], 100)
+        self.assertIsNotNone(metrics['averageLatencyMs'])
         safe = json.dumps([view, public]) + raw_csv.decode('utf-8-sig')
         self.assertFalse(any(value in safe for value in
                              (token, self.cookie.split('=', 1)[1], 'private integration prompt', 'Local test:')))

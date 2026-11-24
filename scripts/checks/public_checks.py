@@ -87,6 +87,9 @@ def run(port, out_dir, headed):
         # 5) 模型筛选空态与详情
         page.evaluate("() => location.hash = 'models'")
         page.wait_for_selector(".pa-model-card")
+        checks.check(page.evaluate("""() => document.querySelector('.pa-model-observed').innerText.includes('暂无数据')
+            && document.querySelector('.pa-model-observed').innerText.includes('累计请求')"""),
+                     "model observed metrics without fabricated history")
         page.wait_for_timeout(150)
         page.evaluate("""() => {
             const input = document.querySelector('.pa-catalog-filter input');

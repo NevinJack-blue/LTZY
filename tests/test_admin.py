@@ -136,6 +136,15 @@ class AdminTests(unittest.TestCase):
         for value in [True,0.0000001,'NaN']:
             self.assertEqual(self.call('/api/admin/user',{'id':uid,'action':'balance','delta':value})[0],400)
 
+    def test_balance_adjustment_cannot_make_available_balance_negative(self):
+        self.login()
+        with closing(server.connect(self.srv.db_path)) as db:
+            db.execute("INSERT INTO users VALUES('u1','user@test.dev','x','user','active',25000000,'2026-01-01')")
+            db.execute("INSERT INTO receipts(id,createdAt,model,lane,keyId,status,settlement,inputTokens,outputTokens,cost,reserved,latencyMs,trace,price,user_id) "
+                       "VALUES('r1','2026-01-01','local/test',NULL,'k1','success','settled',10,10,24000000,0,0,'[]','{}','u1')")
+        self.assertEqual(self.call('/api/admin/user',{'id':'u1','action':'balance','delta':-2})[0],409)
+        self.assertEqual(self.call('/api/admin/user',{'id':'u1','action':'balance','delta':-1})[0],200)
+
     def test_concurrent_lane_disable_preserves_last_lane(self):
         self.login()
         with ThreadPoolExecutor() as pool:

@@ -146,6 +146,17 @@ def snapshot(db, public=False, user_id=None):
     total, ok, failed = db.execute(f"SELECT count(*),count(CASE WHEN status='success' THEN 1 END),count(CASE WHEN status IN ('failed','interrupted') THEN 1 END) FROM receipts {scope}", args).fetchone()
     result = dict(models=list(models.values()), status=dict(updatedAt=now(), requests=total, successful=ok,
                   failed=failed, enabledLanes=sum(x['enabled'] for x in lanes), totalLanes=len(lanes)))
+    if public:
+        observed = {row[0]: row[1:] for row in db.execute(
+            "SELECT model,count(*),count(CASE WHEN status='success' THEN 1 END),"
+            "count(CASE WHEN status IN ('failed','interrupted') THEN 1 END),avg(latencyMs) "
+            "FROM receipts GROUP BY model")}
+        for model in result['models']:
+            requests, successful, failures, latency = observed.get(model['id'], (0, 0, 0, None))
+            completed = successful + failures
+            model['metrics'] = dict(requests=requests, successful=successful, failed=failures,
+                                    successRate=round(successful * 100 / completed, 1) if completed else None,
+                                    averageLatencyMs=round(latency) if latency is not None else None)
     if not public:
         limit, spent, held = funds(db, user_id)
         usage = [dict(model=m, requests=n, inputTokens=i, outputTokens=o, cost=c/MILLION) for m,n,i,o,c in

@@ -1,4 +1,5 @@
 const sections={console:['项目总览','Overview'],keys:['API 密钥','Access keys'],logs:['请求日志','Requests'],usage:['余额与充值','Balance'],ops:['线路与对账','Operations'],users:['用户管理','Users'],settings:['系统设置','Settings']};
+const pageDescriptions={console:'查看当前项目的调用概况、余额和最近请求。',keys:'按应用创建独立密钥，权限与撤销状态集中管理。',logs:'按请求 ID、模型和状态筛选，核对路由与计量明细。',usage:'查看可用余额、模型用量和充值订单。',ops:'管理已配置线路，处理待核对请求与费用差额。',users:'管理账号角色、可用余额和充值记录。',settings:'配置注册、邮件服务、支付通道和站点地址。'};
 const traceLabels={reserved:'预算预留',attempt:'尝试上游',first_byte:'收到首字节',settled:'用量结算',fallback:'切换备用线路',rejected:'上游拒绝',failed:'请求失败',interrupted:'请求中断',pending:'等待核对',reconciled:'人工核对结算',incomplete_response:'上游响应不完整',void:'不计费用'};
 const labels={success:'成功',failed:'失败',interrupted:'已中断',running:'进行中',settled:'已结算',pending:'待核对',reserved:'已预留',void:'未计费'};
 const fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
@@ -23,7 +24,7 @@ aside+
 '</div>'+
 body+
 '</section>';
-const empty=(title,text='')=>'<div class="dk-empty"><span class="dk-empty-icon">'+
+const empty=(title,text='',action='')=>'<div class="dk-empty"><span class="dk-empty-icon">'+
 icon('logs')+
 '</span><strong>'+
 title+
@@ -31,6 +32,7 @@ title+
 (text?'<p>'+
 text+
 '</p>':'')+
+(action?'<div class="dk-empty-action">'+action+'</div>':'')+
 '</div>';
 const stat=(label,value,sub='')=>'<div class="dk-stat" data-build><span>'+
 label+
@@ -128,7 +130,7 @@ money(u.cost)+
  const completed=ok+bad,rate=completed?Math.round(ok/completed*100):0;
  return '<section class="dk-signal" data-build><div class="dk-signal-title">'+
 
- '<span class="dk-kicker">REQUEST SIGNAL</span><h2>每次调用，都有据可循。</h2>'+
+ '<span class="dk-kicker">REQUEST SIGNAL</span><h2>请求与结算概况</h2>'+
 
  '<p>从路由选择到用量结算，记录真实请求的完整路径。</p>'+
 link('logs','打开请求账本 ↗')+
@@ -185,7 +187,7 @@ fmt(output)+
  function accessSummary(){return '<div class="dk-access-summary" data-build><div class="dk-access-orb">'+
 
  icon('keys')+
-'</div><div><span class="dk-kicker">ACCESS CONTROL</span><h2>权限分开，访问可控。</h2>'+
+'</div><div><span class="dk-kicker">ACCESS CONTROL</span><h2>密钥与权限管理</h2>'+
 
  '<p>调用密钥用于服务端，仅读密钥仅访问模型目录。撤销后立即拒绝新的请求。</p></div>'+
 
@@ -246,7 +248,7 @@ e(k.name)+
 e(k.prefix)+
 '…</code>',when(k.created_at),k.revoked?'<span class="dk-tag">已撤销</span>':'<span class="dk-tag dk-good">有效</span>',k.revoked?'—':'<button class="dk-action dk-danger" data-revoke="'+
 i+
-'">撤销</button>'])):empty('尚未创建密钥','按应用隔离权限，独立管理和撤销。'),'<span class="dk-muted">'+
+'">撤销</button>'])):empty('尚未创建密钥','按应用隔离权限，独立管理和撤销。','<button class="dk-btn" data-focus-key>创建第一个密钥 →</button>'),'<span class="dk-muted">'+
 fmt(active.length)+
 ' 个有效</span>')+
 '<aside class="dk-create" data-build><div class="dk-create-icon">'+
@@ -267,11 +269,12 @@ labels[s]+
 '</select></label><button class="dk-action" type="reset">清空筛选</button></form><div class="dk-request-layout"><section class="dk-section" data-results data-build></section><aside class="dk-inspector" data-inspector data-build>'+
 empty('选择一条请求','查看实际线路、路由轨迹、价格快照与结算明细。')+
 '</aside></div>';}
+ function wallet(){return '<section class="dk-wallet" data-build aria-label="账户余额卡"><div class="dk-wallet-gridlines" aria-hidden="true"></div><header><span class="dk-wallet-chip"><i></i><i></i><i></i></span><span>LTZY / ACCOUNT BALANCE</span></header><div class="dk-wallet-balance"><small>当前可用余额 · USD</small><strong>'+money(me.balance)+'</strong></div><dl><div><dt>累计充值与调账</dt><dd>'+money(b.limit)+'</dd></div><div><dt>已结算</dt><dd>'+money(b.spent)+'</dd></div><div><dt>预留中</dt><dd>'+money(b.reserved)+'</dd></div></dl><footer><span>'+e(me.email)+'</span><span><i></i>账本实时数据</span></footer></section>'}
  function billing(){const orderRows=orders.orders.map(o=>[e(o.id),money(o.amount),e(o.channel||'—'),o.status==='paid'?'<span class="dk-tag dk-good">已到账</span>':'<span class="dk-tag dk-warn">待支付</span>',when(o.createdAt)]);
-  return budgetSummary+tokenChart()+
+  return '<div class="dk-wallet-layout">'+wallet()+section('在线充值','<form data-form="recharge"><p>通过标准彩虹易支付通道充值，支付完成后余额自动到账；金额为 USD，单笔上限 $10000。</p><label for="dk-amount">充值金额（USD）</label><input name="amount" id="dk-amount" type="number" min="0.01" max="10000" step="0.01" value="10.00" required><label for="dk-channel">支付渠道</label><select name="channel" id="dk-channel"><option value="alipay">支付宝</option><option value="wxpay">微信支付</option><option value="qqpay">QQ 钱包</option></select><button class="dk-btn dk-primary">前往支付 ↗</button></form>')+'</div>'+tokenChart()+
  '<div class="dk-billing-layout">'+
- section('按模型归集',usage.length?table(['模型','请求数','输入 tokens','输出 tokens','已结算'],usage.map(u=>[e(u.model),fmt(u.requests),fmt(u.inputTokens),fmt(u.outputTokens),money(u.cost)])):empty('暂无用量','真实请求计量将按模型累计。'),csv)+section('在线充值','<form data-form="recharge"><p>通过标准彩虹易支付通道充值，支付完成后余额自动到账；金额为 USD，单笔上限 $10000。</p><label for="dk-amount">充值金额（USD）</label><input name="amount" id="dk-amount" type="number" min="0.01" max="10000" step="0.01" value="10.00" required><label for="dk-channel">支付渠道</label><select name="channel" id="dk-channel"><option value="alipay">支付宝</option><option value="wxpay">微信支付</option><option value="qqpay">QQ 钱包</option></select><button class="dk-btn dk-primary">前往支付 ↗</button></form>')+
- section('充值订单',orderRows.length?table(['订单','金额','渠道','状态','创建时间'],orderRows):empty('还没有充值订单','发起充值后，此处将记录每笔订单与到账状态。'))+
+ section('按模型归集',usage.length?table(['模型','请求数','输入 tokens','输出 tokens','已结算'],usage.map(u=>[e(u.model),fmt(u.requests),fmt(u.inputTokens),fmt(u.outputTokens),money(u.cost)])):empty('暂无用量','真实请求计量将按模型累计。','<a class="dk-btn" href="#docs">查看调用示例 →</a>'),csv)+
+ section('充值订单',orderRows.length?table(['订单','金额','渠道','状态','创建时间'],orderRows):empty('还没有充值订单','发起充值后，此处将记录每笔订单与到账状态。','<button class="dk-btn" data-focus-recharge>填写充值金额 →</button>'))+
  '</div>';}
  function usersPage(){const users=adminView.users;
   const rows=users.map(u=>['<b>'+e(u.email)+'</b><small>'+e(u.role==='admin'?'管理员':'普通用户')+'</small>',money(u.balance),money(u.spent),fmt(u.keys),
@@ -279,7 +282,7 @@ empty('选择一条请求','查看实际线路、路由轨迹、价格快照与�
    '<button class="dk-action" data-user-balance="'+e(u.id)+'">调余额</button> '+(u.status==='active'?'<button class="dk-action" data-user-ban="'+e(u.id)+'">封禁</button>':'<button class="dk-action" data-user-unban="'+e(u.id)+'">解封</button>')+' <button class="dk-action" data-user-role="'+e(u.id)+'">'+(u.role==='admin'?'降为用户':'升为管理员')+'</button>']);
   return '<div class="dk-ops-summary"><div><b>'+fmt(users.length)+' 个账号</b><p>余额为可用余额（充值与调账减去已结算与预留）。调整会记入审计。</p></div></div>'+
   section('账号列表',table(['邮箱 / 角色','可用余额','累计消费','有效密钥','状态','操作'],rows))+
-  section('最近充值订单',adminView.recharges.length?table(['订单','用户','金额','状态','渠道','创建时间'],adminView.recharges.map(r=>[e(r.outTradeNo),e(r.amount),r.status==='paid'?'<span class="dk-tag dk-good">已到账</span>':'<span class="dk-tag dk-warn">待支付</span>',e(r.channel||'—'),when(r.createdAt)])):empty('暂无充值订单'));
+  section('最近充值订单',adminView.recharges.length?table(['订单','用户','金额','状态','渠道','创建时间'],adminView.recharges.map(r=>[e(r.outTradeNo),e(r.user||'—'),money(r.amount),r.status==='paid'?'<span class="dk-tag dk-good">已到账</span>':'<span class="dk-tag dk-warn">待支付</span>',e(r.channel||'—'),when(r.createdAt)])):empty('暂无充值订单'));
  }
  function settingsPage(){const s=adminView;
   return '<div class="dk-settings-grid">'+
@@ -365,7 +368,7 @@ charge(r)+
  if(c)c.onclick=()=>copy(r.id);}
  async function copy(text){try{await navigator.clipboard.writeText(text);notify('已复制')}catch{notify('无法访问剪贴板，请手动选择文本复制。')}}
  const view={console:overview,keys:keyPage,logs,usage:billing,ops,users:usersPage,settings:settingsPage};
- root.innerHTML='<div class="dk"><aside class="dk-side" data-build><a class="dk-project" href="#console"><img class="dk-marker" src="/logo-256.png" width="39" height="39" alt=""><div><b>默认项目</b><small>LTZY / WORKSPACE</small></div></a><span class="dk-nav-label">工作空间</span><nav aria-label="控制台导航">'+
+ root.innerHTML='<div class="dk"><header class="dk-topbar"><a class="dk-brand" href="#console"><img src="/logo-256.png" width="31" height="31" alt=""><span><b>LTZY</b><small>SIGNAL LEDGER</small></span></a><span class="dk-workspace-name">默认项目 · '+(isAdmin?'管理员':'成员')+'</span><div class="dk-top-actions"><a href="#models">模型广场</a><a href="#docs">使用说明</a><button type="button" data-theme-local aria-label="切换深色主题">☾</button><span class="dk-account">'+e(me.email)+'</span></div></header><aside class="dk-side" data-build><span class="dk-nav-label">工作空间</span><nav aria-label="控制台导航">'+
 Object.entries(roleSections).map(([k,[name]])=>'<a href="#'+
 k+
 '" aria-label="'+e(name)+'" '+
@@ -375,15 +378,17 @@ icon(k)+
 '<span>'+
 name+
 '</span></a>').join('')+
-'</nav><a class="dk-doc" href="#docs">接入文档 ↗</a><div class="dk-side-foot"><span class="dk-live-dot"></span>来自项目账本 · 手动刷新</div></aside><div class="dk-main" data-page="'+
+'</nav><a class="dk-doc" href="#models">浏览模型广场 ↗</a><div class="dk-side-foot"><span class="dk-live-dot"></span>数据来自当前项目账本</div></aside><div class="dk-main" data-page="'+
 page+
-'"><header class="dk-pagehead"><div><div class="dk-breadcrumb">工作空间 <span>/</span> '+
+'"><header class="dk-pagehead" data-build><div class="dk-title-wrap"><span class="dk-page-icon" aria-hidden="true">'+
+icon(page)+
+'</span><div><div class="dk-breadcrumb">工作空间 <span>/</span> '+
 roleSections[page][1]+
-'</div><h1 data-build>'+
+'</div><h1>'+
 roleSections[page][0]+
-'</h1></div><button class="dk-btn" data-refresh>刷新数据 ↻</button></header><div data-confirm></div>'+
+'</h1><p class="dk-page-desc">'+pageDescriptions[page]+'</p></div></div><button class="dk-btn dk-refresh" data-refresh>刷新数据 <span aria-hidden="true">↻</span></button></header><div data-confirm></div>'+
 view[page]()+((page==='console'||page==='ops')?terminal():'')+
-'</div></div>';
+'</div><nav class="dk-mobile-nav" aria-label="移动端工作台导航">'+[['console','总览'],['keys','密钥'],['logs','日志'],['usage','余额']].map(([k,name])=>'<a href="#'+k+'" '+(k===page?'aria-current="page"':'')+'>'+icon(k)+'<span>'+name+'</span></a>').join('')+'<details class="dk-more"><summary>'+icon('settings')+'<span>更多</span></summary><div><a href="#models">模型广场</a><a href="#docs">使用说明</a>'+Object.entries(roleSections).filter(([k])=>!['console','keys','logs','usage'].includes(k)).map(([k,[name]])=>'<a href="#'+k+'">'+name+'</a>').join('')+'</div></details></nav></div>';
  const desk=root.querySelector('.dk'),q=s=>desk.querySelector(s);let busy=false,confirmed=null;
  const scrollBehavior=()=>document.documentElement.classList.contains('motion-quiet')||
  matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
@@ -418,7 +423,9 @@ rows.length+
  }
  else if('receipt'in a){const r=requests.find(r=>r.id===a.receipt)||pending.find(r=>r.id===a.receipt);
  if(r)receipt(r)}
- else if('refresh'in a)perform(refresh);else if('revoke'in a){const k=keys[a.revoke];showConfirm('撤销「'+
+ else if('refresh'in a)perform(refresh);else if('focusKey'in a){const field=q('.dk-create input');field.scrollIntoView({behavior:scrollBehavior(),block:'center'});field.focus();}
+ else if('focusRecharge'in a){const field=q('[name=amount]');field.scrollIntoView({behavior:scrollBehavior(),block:'center'});field.focus();field.select();}
+ else if('revoke'in a){const k=keys[a.revoke];showConfirm('撤销「'+
 e(k.name)+
 '」？使用此密钥的新请求将被拒绝，此操作无法撤回。','确认撤销',()=>mutate('/api/keys/revoke',{id:k.id},'密钥已撤销'));}
  else if('lane'in a){const l=lanes[a.lane];showConfirm((l.enabled?'停用':'启用')+
